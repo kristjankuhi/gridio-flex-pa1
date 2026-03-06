@@ -13,15 +13,20 @@ The prototype is for internal/stakeholder demonstration, not production use.
 ## Tech Stack
 
 - **Frontend**: React 19 + Vite 7 + TypeScript 5
-- **Styling**: Tailwind CSS v4
-- **Package manager**: npm
+- **Styling**: Tailwind CSS v4 + shadcn/ui
+- **Charts**: Recharts (ComposedChart, Bar, Line, ReferenceLine)
+- **Routing**: React Router v6
+- **Date utils**: date-fns
+- **API server**: Hono v4 + @hono/zod-openapi (Node.js, port 3000)
 - **Testing**: Vitest + React Testing Library
+- **Linting**: ESLint 9 (flat config) + Prettier 3
 - **CI/CD**: GitHub Actions + Vercel
+- **Package manager**: npm
 
 ## Commands
 
 ```bash
-npm run dev          # Start dev server (http://localhost:5173)
+npm run dev          # Start both frontend (5173) and API server (3000) concurrently
 npm run build        # Production build
 npm run preview      # Preview production build locally
 npm run lint         # Run ESLint
@@ -30,6 +35,8 @@ npm run typecheck    # TypeScript type check (no emit)
 npm run test         # Run all Vitest tests once
 npm run test:watch   # Run Vitest in watch mode
 ```
+
+API docs available at http://localhost:3000/api/docs (Swagger UI) when dev server is running.
 
 ## Domain Context
 
@@ -41,20 +48,101 @@ Key concepts relevant to this codebase:
 - **Balancing**: Real-time or near-real-time adjustment of supply/demand to keep the grid stable.
 - **System Services**: Ancillary services (e.g., frequency containment reserve, fast frequency response) procured by grid operators.
 - **Aggregator**: Gridio's role — aggregating many small EV assets into a dispatchable resource large enough to participate in flexibility markets.
+- **DA market**: Day-Ahead market — prices published ~12:45 CET for the next full day (Nord Pool / EPEX). The "known price horizon" is today midnight before 13:00 CET, tomorrow midnight after 13:00.
+- **mFRR**: Manual Frequency Restoration Reserve — a balancing product (Flex 2.0 feature, toggled in Settings).
+
+## Workflow
+
+- **Never commit directly to `main`** — all changes go through a feature branch + PR.
+- Branch naming: `feat/`, `fix/`, `docs/`, `chore/` prefixes.
+- Pre-commit hook runs ESLint (auto-fix) + Prettier on every commit.
+- CI pipeline: typecheck → lint → test → build. All must pass before merging.
+- Plans are saved to `C:/_projects/gridio_flex_PA1/docs/plans/` before writing code.
 
 ## Project Structure
 
 ```
 app_workspace/
-├── .github/workflows/ci.yml   # GitHub Actions CI pipeline
-├── .husky/pre-commit           # Pre-commit hook (runs lint-staged)
+├── server/
+│   └── src/
+│       ├── index.ts                  # Hono API server (port 3000)
+│       ├── routes/
+│       │   ├── fleet.ts              # GET /fleet/stats, GET /fleet/load
+│       │   ├── priceCurve.ts         # GET/POST /price-curve, versioning
+│       │   └── simulation.ts         # POST /simulation/run
+│       ├── services/
+│       │   ├── priceService.ts       # Fetches real Belgian DA prices (energy-charts.info)
+│       │   └── simulationClock.ts    # Server-side simulation clock (15-min ticks)
+│       ├── schemas.ts                # Zod/OpenAPI schemas
+│       └── store/                    # In-memory price curve version store
 ├── src/
-│   ├── components/             # React components (to be added)
-│   ├── test/setup.ts           # Vitest + Testing Library setup
-│   ├── App.test.tsx            # Smoke test
-│   ├── App.tsx                 # Root component
-│   └── main.tsx                # Entry point
-├── eslint.config.js            # ESLint flat config (with Prettier)
-├── vite.config.ts              # Vite + Vitest + Tailwind config
-└── .prettierrc                 # Prettier config
+│   ├── api/
+│   │   └── client.ts                 # Typed REST API client
+│   ├── components/
+│   │   ├── ui/                       # shadcn/ui primitives
+│   │   ├── ActivationTable.tsx       # Settlement activation log
+│   │   ├── FleetChart.tsx            # Main fleet load + price ComposedChart
+│   │   ├── FlexibilityImpact.tsx     # KPI strip + delta bar chart
+│   │   ├── Layout.tsx                # App shell
+│   │   ├── PeriodSelector.tsx        # 1D/1W/1M/1Y navigation
+│   │   ├── PriceTable.tsx            # 96-row editable price table
+│   │   ├── SettingsPanel.tsx         # Gear icon + slide-out settings sheet
+│   │   ├── SimulationChart.tsx       # Baseline vs projected result chart
+│   │   ├── StatCard.tsx              # KPI card
+│   │   ├── TopNav.tsx                # Navigation bar
+│   │   └── VersionHistoryPanel.tsx   # Price curve version history
+│   ├── data/
+│   │   ├── chartBuckets.ts           # Shared x-axis bucket builder (FleetChart + FlexibilityImpact)
+│   │   └── generators.ts             # Simulated data generators (fleet load, prices, activations)
+│   ├── hooks/
+│   │   ├── usePeriodSelector.ts      # Period navigation state (1D/1W/1M/1Y, up to +1Y)
+│   │   └── usePriceTableState.ts     # Price table edit state
+│   ├── pages/
+│   │   ├── Dashboard.tsx             # /dashboard
+│   │   ├── PriceEditor.tsx           # /price-editor
+│   │   └── Settlement.tsx            # /settlement
+│   ├── store/
+│   │   ├── priceCurveStore.tsx       # React Context price curve state
+│   │   └── settingsStore.tsx         # React Context settings (localStorage-backed)
+│   ├── types/
+│   │   └── index.ts                  # Shared TypeScript types
+│   └── App.tsx                       # Router + providers
+├── .github/workflows/ci.yml          # GitHub Actions CI pipeline
+├── .husky/pre-commit                 # Pre-commit hook (lint-staged)
+├── middleware.ts                     # Vercel Edge Middleware (HTTP Basic Auth)
+├── eslint.config.js                  # ESLint flat config
+├── vite.config.ts                    # Vite + Vitest + Tailwind config
+└── .prettierrc                       # Prettier config
 ```
+
+## Key Implementation Notes
+
+### Data generation (`src/data/generators.ts`)
+
+- `generateHistoricLoad(daysBack)` ends at `now` (not midnight) — ensures today's intraday blocks are included.
+- `generateForecastLoad(daysAhead)` starts at the next 15-min boundary after `now`.
+- Belgian DA price model: monthly base prices × seasonal intraday shape (duck curve in summer, double peak in winter) × weekend discount (12%).
+- Negative price events: ~18% of summer days (Jun–Sep) trigger deeply negative midday blocks (−8 to −55 EUR/MWh). Same day always produces the same result (seeded by day index).
+- Forecast uncertainty grows from ±10% near-term to ±40% at 1 year out.
+
+### Chart x-axis alignment (`src/data/chartBuckets.ts`)
+
+- `buildTimeBuckets(range, timeWindow)` and `getBucketLabel(timestamp, timeWindow)` must be used by both `FleetChart` and `FlexibilityImpact` to keep the delta bars aligned to the load bars.
+
+### Period navigation (`src/hooks/usePeriodSelector.ts`)
+
+- Forward navigation allowed up to 1 year from today. `isAtPresent` is true when further forward navigation would exceed this limit.
+
+### DA price forecast horizon (`src/components/FleetChart.tsx`)
+
+- `getDAKnownHorizon()` returns `endOfDay(tomorrow)` after 13:00 CET, `endOfDay(today)` before 13:00.
+- Price data before the horizon uses `priceHistoric` (solid line); after uses `priceForecast` (dotted line).
+
+### Recharts dark theme
+
+- Always include `color: '#e2e8f0'` in Tooltip `contentStyle` and `itemStyle={{ color: '#e2e8f0' }}` — without this, tooltip text is invisible on dark backgrounds.
+
+### Settings (`src/store/settingsStore.tsx`)
+
+- Three toggles persisted to `localStorage` under `'gridio-flex-settings'`: `mfrrEnabled`, `showForecast`, `realtimeSimulation`.
+- Wrap the app in `<SettingsProvider>` (done in `App.tsx`); consume with `useSettings()`.
