@@ -21,9 +21,9 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
-  // shadcn/ui generated files export variant helpers alongside components
+  // shadcn/ui generated files and Context store files mix exports with components
   {
-    files: ['src/components/ui/**/*.{ts,tsx}'],
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/store/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },
