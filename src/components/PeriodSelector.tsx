@@ -105,32 +105,32 @@ export function PeriodSelector({
   const shortcuts = getShortcuts(timeWindow, today);
 
   return (
-    <div className="flex items-start justify-between">
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onPrev}
-            className="h-7 w-7"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-medium min-w-56 text-center">
-            {label}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onNext}
-            disabled={isAtPresent}
-            className="h-7 w-7"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onPrev}
+          className="h-7 w-7"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-medium min-w-56 text-center">
+          {label}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onNext}
+          disabled={isAtPresent}
+          className="h-7 w-7"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
 
-        <div className="flex items-center gap-0.5 pl-1">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
           {shortcuts.map(({ label: shortcutLabel, date }) => {
             const active = isShortcutActive(anchor, date, timeWindow);
             const disabled = isBefore(limit, date);
@@ -139,12 +139,12 @@ export function PeriodSelector({
                 key={shortcutLabel}
                 onClick={() => onJumpTo(date)}
                 disabled={disabled}
-                className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
                   active
-                    ? 'bg-primary/20 text-primary font-medium'
+                    ? 'bg-primary/15 text-primary font-medium'
                     : disabled
                       ? 'text-muted-foreground/30 cursor-not-allowed'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 }`}
               >
                 {shortcutLabel}
@@ -152,22 +152,24 @@ export function PeriodSelector({
             );
           })}
         </div>
-      </div>
 
-      <div className="flex gap-1 bg-muted rounded-md p-1">
-        {WINDOWS.map((w) => (
-          <button
-            key={w}
-            onClick={() => onWindowChange(w)}
-            className={`px-3 py-1 text-xs rounded transition-colors ${
-              timeWindow === w
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {w}
-          </button>
-        ))}
+        <div className="w-px h-4 bg-border" />
+
+        <div className="flex gap-1 bg-muted rounded-md p-1">
+          {WINDOWS.map((w) => (
+            <button
+              key={w}
+              onClick={() => onWindowChange(w)}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                timeWindow === w
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {w}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
