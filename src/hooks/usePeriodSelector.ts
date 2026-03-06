@@ -18,6 +18,7 @@ import {
   subYears,
   format,
   isSameDay,
+  isBefore,
 } from 'date-fns';
 import type { TimeWindow, PeriodRange } from '@/types';
 
@@ -60,7 +61,6 @@ export function usePeriodSelector(defaultWindow: TimeWindow = '1D') {
   }, [timeWindow, anchor]);
 
   const goNext = useCallback(() => {
-    const now = new Date();
     setAnchor((prev) => {
       const next =
         timeWindow === '1D'
@@ -70,7 +70,8 @@ export function usePeriodSelector(defaultWindow: TimeWindow = '1D') {
             : timeWindow === '1M'
               ? addMonths(prev, 1)
               : addYears(prev, 1);
-      return next > now ? prev : next;
+      const limit = addYears(new Date(), 1);
+      return isBefore(limit, next) ? prev : next;
     });
   }, [timeWindow]);
 
@@ -86,18 +87,18 @@ export function usePeriodSelector(defaultWindow: TimeWindow = '1D') {
     );
   }, [timeWindow]);
 
+  // true when the "next" button would go beyond 1 year from now
   const isAtPresent = useMemo(() => {
-    const now = new Date();
-    return timeWindow === '1D'
-      ? isSameDay(anchor, now)
-      : timeWindow === '1W'
-        ? isSameDay(
-            startOfWeek(anchor, { weekStartsOn: 1 }),
-            startOfWeek(now, { weekStartsOn: 1 })
-          )
-        : timeWindow === '1M'
-          ? format(anchor, 'yyyy-MM') === format(now, 'yyyy-MM')
-          : format(anchor, 'yyyy') === format(now, 'yyyy');
+    const limit = addYears(new Date(), 1);
+    const next =
+      timeWindow === '1D'
+        ? addDays(anchor, 1)
+        : timeWindow === '1W'
+          ? addWeeks(anchor, 1)
+          : timeWindow === '1M'
+            ? addMonths(anchor, 1)
+            : addYears(anchor, 1);
+    return isBefore(limit, next);
   }, [anchor, timeWindow]);
 
   return { timeWindow, setTimeWindow, range, goNext, goPrev, isAtPresent };

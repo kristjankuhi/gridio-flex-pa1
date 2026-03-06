@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { format, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
 import type { TimeWindow, PeriodRange } from '@/types';
 
@@ -145,10 +145,10 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
       1,
       Math.ceil((now.getTime() - range.start.getTime()) / 86400000) + 1
     );
+    // daysAhead covers from now to range.end — can be up to ~365 for far-future periods
     const daysAhead = Math.max(
       1,
-      Math.ceil((range.end.getTime() - startOfDay(now).getTime()) / 86400000) +
-        1
+      Math.ceil((range.end.getTime() - now.getTime()) / 86400000) + 1
     );
 
     const historic = generateHistoricLoad(daysBack).filter(
