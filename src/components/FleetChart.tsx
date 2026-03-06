@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { format } from 'date-fns';
+import { format, endOfDay, addDays } from 'date-fns';
 import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
 import type { TimeWindow, PeriodRange } from '@/types';
 
@@ -20,6 +20,13 @@ const TEAL = '#00c9a7';
 const AMBER = '#f59e0b';
 const DARK_GREY = '#334155';
 const CAPACITY_KW = 3280;
+
+// DA market closes at 12:00 CET, prices published ~12:45 for the next full day.
+// After 13:00, prices through end of tomorrow are known; before 13:00, only today.
+function getDAKnownHorizon(): Date {
+  const now = new Date();
+  return now.getHours() >= 13 ? endOfDay(addDays(now, 1)) : endOfDay(now);
+}
 
 interface ChartDataPoint {
   label: string;
@@ -33,7 +40,8 @@ interface ChartDataPoint {
 function aggregateBlocks(
   historicBlocks: ReturnType<typeof generateHistoricLoad>,
   forecastBlocks: ReturnType<typeof generateForecastLoad>,
-  timeWindow: TimeWindow
+  timeWindow: TimeWindow,
+  daHorizon: Date
 ): ChartDataPoint[] {
   type RawBlock = {
     timestamp: Date;
@@ -48,14 +56,21 @@ function aggregateBlocks(
   ];
 
   if (timeWindow === '1D') {
-    return all.map((b) => ({
-      label: format(b.timestamp, 'HH:mm'),
-      flexibleKwh: Math.round(b.flexibleKwh),
-      nonFlexibleKwh: Math.round(b.nonFlexibleKwh),
-      priceHistoric: b.isForecast ? null : Math.round(b.priceEurMwh * 10) / 10,
-      priceForecast: b.isForecast ? Math.round(b.priceEurMwh * 10) / 10 : null,
-      isForecast: b.isForecast,
-    }));
+    return all.map((b) => {
+      const isPriceForecast = b.timestamp > daHorizon;
+      return {
+        label: format(b.timestamp, 'HH:mm'),
+        flexibleKwh: Math.round(b.flexibleKwh),
+        nonFlexibleKwh: Math.round(b.nonFlexibleKwh),
+        priceHistoric: isPriceForecast
+          ? null
+          : Math.round(b.priceEurMwh * 10) / 10,
+        priceForecast: isPriceForecast
+          ? Math.round(b.priceEurMwh * 10) / 10
+          : null,
+        isForecast: b.isForecast,
+      };
+    });
   }
 
   const buckets = new Map<
@@ -91,6 +106,8 @@ function aggregateBlocks(
 
   return Array.from(buckets.entries()).map(([key, val]) => {
     const avgPrice = val.prices.reduce((a, b) => a + b, 0) / val.prices.length;
+    const bucketDate = new Date(timeWindow === '1Y' ? key + '-01' : key);
+    const isPriceForecast = bucketDate > daHorizon;
     const label =
       timeWindow === '1W'
         ? format(new Date(key), 'EEE HH:mm')
@@ -101,8 +118,8 @@ function aggregateBlocks(
       label,
       flexibleKwh: Math.round(val.flex),
       nonFlexibleKwh: Math.round(val.nonFlex),
-      priceHistoric: val.isForecast ? null : Math.round(avgPrice * 10) / 10,
-      priceForecast: val.isForecast ? Math.round(avgPrice * 10) / 10 : null,
+      priceHistoric: isPriceForecast ? null : Math.round(avgPrice * 10) / 10,
+      priceForecast: isPriceForecast ? Math.round(avgPrice * 10) / 10 : null,
       isForecast: val.isForecast,
     };
   });
@@ -158,7 +175,7 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
 
-    return aggregateBlocks(historic, forecast, timeWindow);
+    return aggregateBlocks(historic, forecast, timeWindow, getDAKnownHorizon());
   }, [range, timeWindow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nowLabel = getNowLabel(timeWindow);
