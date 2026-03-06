@@ -182,6 +182,7 @@ export function PriceEditor() {
 
       <VersionHistoryPanel
         open={historyOpen}
+        date={format(selectedDate, 'yyyy-MM-dd')}
         onClose={() => setHistoryOpen(false)}
         onRestore={() => {}}
       />

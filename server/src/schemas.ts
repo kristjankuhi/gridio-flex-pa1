@@ -60,6 +60,10 @@ export const PriceBlockSchema = z
 export const PriceCurveVersionSchema = z
   .object({
     id: z.string(),
+    date: z
+      .string()
+      .date()
+      .describe('The day this curve applies to (YYYY-MM-DD)'),
     createdAt: z.string().datetime(),
     blocks: z.array(PriceBlockSchema),
     summary: z

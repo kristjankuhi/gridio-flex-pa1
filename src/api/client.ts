@@ -39,7 +39,8 @@ export const api = {
   priceCurve: {
     get: (date: string): Promise<PriceBlock[]> =>
       get(`/price-curve?date=${date}`),
-    versions: (): Promise<PriceCurveVersion[]> => get('/price-curve/versions'),
+    versions: (date?: string): Promise<PriceCurveVersion[]> =>
+      get(`/price-curve/versions${date ? `?date=${date}` : ''}`),
     save: (date: string, blocks: PriceBlock[]): Promise<PriceCurveVersion> =>
       post('/price-curve/versions', { date, blocks }),
     restore: (id: string): Promise<PriceCurveVersion> =>

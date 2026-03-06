@@ -19,6 +19,7 @@ export interface PriceBlock {
 
 export interface PriceCurveVersion {
   id: string;
+  date: string; // YYYY-MM-DD — the day this curve applies to
   createdAt: Date;
   blocks: PriceBlock[]; // only the edited blocks (sparse — not all 96)
   summary: string; // auto-generated e.g. "12 blocks changed on 06 Mar"
