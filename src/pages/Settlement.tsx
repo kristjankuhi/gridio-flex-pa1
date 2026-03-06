@@ -36,8 +36,16 @@ function exportCsv(activations: ActivationRecord[], label: string) {
 }
 
 export function Settlement() {
-  const { timeWindow, setTimeWindow, range, goNext, goPrev, isAtPresent } =
-    usePeriodSelector('1W');
+  const {
+    timeWindow,
+    setTimeWindow,
+    anchor,
+    jumpTo,
+    range,
+    goNext,
+    goPrev,
+    isAtPresent,
+  } = usePeriodSelector('1W');
 
   const allActivations = useMemo(() => generateActivationHistory(365), []);
   const activations = useMemo(
@@ -72,10 +80,12 @@ export function Settlement() {
       <PeriodSelector
         timeWindow={timeWindow}
         label={range.label}
+        anchor={anchor}
         isAtPresent={isAtPresent}
         onWindowChange={setTimeWindow}
         onPrev={goPrev}
         onNext={goNext}
+        onJumpTo={jumpTo}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
