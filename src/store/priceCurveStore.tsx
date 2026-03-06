@@ -65,6 +65,7 @@ export function PriceCurveProvider({
       const summary = buildVersionSummary(baseBlocks, newBlocks);
       const newVersion: PriceCurveVersion = {
         id: nanoid(),
+        date: format(newBlocks[0]?.timestamp ?? new Date(), 'yyyy-MM-dd'),
         createdAt: new Date(),
         blocks: newBlocks,
         summary,
