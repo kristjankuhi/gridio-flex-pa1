@@ -17,9 +17,10 @@ describe('generateFleetStats', () => {
 });
 
 describe('generateHistoricLoad', () => {
-  it('returns 96 blocks for 1 day', () => {
+  it("returns at least 96 blocks for 1 day (includes today's partial day)", () => {
     const blocks = generateHistoricLoad(1);
-    expect(blocks).toHaveLength(96);
+    expect(blocks.length).toBeGreaterThanOrEqual(96);
+    expect(blocks.length).toBeLessThanOrEqual(192);
   });
 
   it('each block has non-negative volumes', () => {
@@ -30,9 +31,10 @@ describe('generateHistoricLoad', () => {
     });
   });
 
-  it('returns 96 * 365 blocks for 1 year', () => {
+  it("returns approximately 96 * 365 blocks for 1 year (includes today's partial day)", () => {
     const blocks = generateHistoricLoad(365);
-    expect(blocks).toHaveLength(96 * 365);
+    expect(blocks.length).toBeGreaterThanOrEqual(96 * 365);
+    expect(blocks.length).toBeLessThanOrEqual(96 * 366);
   });
 });
 

@@ -7,35 +7,148 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-// Day-ahead price shape: low at night, peak morning + evening
-function basePriceForHour(hour: number): number {
-  const profile: Record<number, number> = {
-    0: 32,
-    1: 28,
-    2: 25,
-    3: 24,
-    4: 24,
-    5: 28,
-    6: 45,
-    7: 68,
-    8: 75,
-    9: 70,
-    10: 62,
-    11: 58,
-    12: 55,
-    13: 52,
-    14: 50,
-    15: 53,
-    16: 60,
-    17: 78,
-    18: 95,
-    19: 88,
-    20: 72,
-    21: 60,
-    22: 48,
-    23: 38,
-  };
-  return profile[hour] ?? 50;
+// Belgian DA price — monthly base (EUR/MWh), based on ENTSO-E/EPEX BE historical averages
+// Winter high demand + low solar; summer lower demand + high solar
+const MONTHLY_BASE_PRICE: Record<number, number> = {
+  0: 85, // Jan — cold, low solar
+  1: 78, // Feb
+  2: 68, // Mar — solar starting
+  3: 55, // Apr
+  4: 48, // May
+  5: 42, // Jun — summer solar peak
+  6: 38, // Jul — lowest annual average
+  7: 40, // Aug
+  8: 55, // Sep — solar fading
+  9: 68, // Oct
+  10: 80, // Nov
+  11: 88, // Dec — cold + low solar
+};
+
+// Intraday shape factors per season (multiplier on monthly base)
+// Summer: duck curve — solar suppresses midday prices on normal days (low but positive).
+// Negative prices are a separate event (~5-6 days/month), handled below.
+const SUMMER_SHAPE: Record<number, number> = {
+  0: 0.7,
+  1: 0.64,
+  2: 0.59,
+  3: 0.56,
+  4: 0.58,
+  5: 0.68,
+  6: 0.88,
+  7: 1.08,
+  8: 1.05,
+  9: 0.8,
+  10: 0.5,
+  11: 0.28,
+  12: 0.18,
+  13: 0.15,
+  14: 0.22,
+  15: 0.42,
+  16: 0.78,
+  17: 1.18,
+  18: 1.4,
+  19: 1.38,
+  20: 1.18,
+  21: 1.0,
+  22: 0.85,
+  23: 0.75,
+};
+
+// Negative-price day: ~5-6 days/month in summer (≈18% chance per day).
+// Uses the calendar day as a stable seed — same day always returns the same result.
+function isNegativePriceDay(dayIndex: number, month: number): boolean {
+  if (month < 4 || month > 7) return false;
+  return seededRandom(dayIndex * 53 + 11) < 0.18;
+}
+
+// On a negative-price day, solar hours (10-15) get a strongly negative price.
+// Peak at 13:00 (-8 to -55 EUR/MWh); tapers off toward the shoulders.
+const NEGATIVE_HOUR_DEPTH: Record<number, number> = {
+  10: 0.2,
+  11: 0.55,
+  12: 0.85,
+  13: 1.0,
+  14: 0.8,
+  15: 0.3,
+};
+function negativeDayPrice(hour: number, dayIndex: number): number | null {
+  const depth = NEGATIVE_HOUR_DEPTH[hour];
+  if (depth === undefined) return null;
+  // Day-specific peak magnitude: -8 to -55 EUR/MWh
+  const peakMagnitude = 8 + seededRandom(dayIndex * 37 + 5) * 47;
+  return -(peakMagnitude * depth);
+}
+// Winter: classic double peak, small midday dip, high night floor
+const WINTER_SHAPE: Record<number, number> = {
+  0: 0.72,
+  1: 0.68,
+  2: 0.65,
+  3: 0.63,
+  4: 0.65,
+  5: 0.72,
+  6: 0.9,
+  7: 1.22,
+  8: 1.35,
+  9: 1.22,
+  10: 1.08,
+  11: 1.0,
+  12: 0.97,
+  13: 0.93,
+  14: 0.9,
+  15: 0.95,
+  16: 1.12,
+  17: 1.38,
+  18: 1.48,
+  19: 1.42,
+  20: 1.28,
+  21: 1.08,
+  22: 0.92,
+  23: 0.8,
+};
+// Spring/Autumn: intermediate, moderate midday dip
+const MIDSEASON_SHAPE: Record<number, number> = {
+  0: 0.71,
+  1: 0.66,
+  2: 0.62,
+  3: 0.6,
+  4: 0.62,
+  5: 0.7,
+  6: 0.89,
+  7: 1.15,
+  8: 1.24,
+  9: 1.1,
+  10: 0.92,
+  11: 0.75,
+  12: 0.62,
+  13: 0.58,
+  14: 0.62,
+  15: 0.72,
+  16: 0.97,
+  17: 1.28,
+  18: 1.42,
+  19: 1.38,
+  20: 1.2,
+  21: 1.02,
+  22: 0.87,
+  23: 0.78,
+};
+
+// Realistic Belgian DA price: seasonal base × intraday shape × weekend discount
+function basePriceForHour(
+  hour: number,
+  month: number,
+  isWeekend: boolean
+): number {
+  const base = MONTHLY_BASE_PRICE[month] ?? 65;
+  const isSummer = month >= 4 && month <= 7;
+  const isWinter = month <= 1 || month >= 10;
+  const shape = isSummer
+    ? SUMMER_SHAPE
+    : isWinter
+      ? WINTER_SHAPE
+      : MIDSEASON_SHAPE;
+  const weekendDiscount = isWeekend ? 0.88 : 1.0;
+  return base * (shape[hour] ?? 1.0) * weekendDiscount;
 }
 
 // Charging load shape: high overnight (22:00–06:00), low midday
@@ -107,7 +220,7 @@ export function generateFleetStats(): FleetStats {
 export function generateHistoricLoad(daysBack: number): TimeBlock[] {
   const blocks: TimeBlock[] = [];
   const now = new Date();
-  const end = startOfDay(now); // stop at midnight today — gives exactly daysBack * 96 blocks
+  const end = now; // include today's blocks up to the current time
   const start = startOfDay(subDays(now, daysBack));
 
   let current = start;
@@ -117,20 +230,32 @@ export function generateHistoricLoad(daysBack: number): TimeBlock[] {
     const hour = current.getHours();
     const dayOfWeek = current.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const month = current.getMonth();
 
     const baseLoad = baseLoadKwhForHour(hour, isWeekend);
     const noise = 1 + (seededRandom(seed++) - 0.5) * 0.25;
     const total = baseLoad * noise;
     const flexRatio = 0.62 + seededRandom(seed++) * 0.12;
 
-    const basePrice = basePriceForHour(hour);
-    const priceNoise = 1 + (seededRandom(seed++) - 0.5) * 0.15;
+    const dayIndex = Math.floor(current.getTime() / 86400000);
+    const negDay = isNegativePriceDay(dayIndex, month);
+    const negPrice = negDay ? negativeDayPrice(hour, dayIndex) : null;
+
+    let priceEurMwh: number;
+    if (negPrice !== null) {
+      const noise = 1 + (seededRandom(seed++) - 0.5) * 0.25;
+      priceEurMwh = Math.max(-100, negPrice * noise);
+    } else {
+      const basePrice = basePriceForHour(hour, month, isWeekend);
+      const priceNoise = 1 + (seededRandom(seed++) - 0.5) * 0.15;
+      priceEurMwh = Math.max(-100, basePrice * priceNoise);
+    }
 
     blocks.push({
       timestamp: new Date(current),
       flexibleKwh: Math.max(0, total * flexRatio),
       nonFlexibleKwh: Math.max(0, total * (1 - flexRatio)),
-      priceEurMwh: Math.max(0, basePrice * priceNoise),
+      priceEurMwh,
     });
 
     current = addMinutes(current, 15);
@@ -150,28 +275,48 @@ export function generateForecastLoad(daysAhead: number): TimeBlock[] {
 
   const end = startOfDay(addMinutes(current, daysAhead * 24 * 60));
   let seed = 9999;
+  let blockIndex = 0;
 
   while (current < end) {
     const hour = current.getHours();
     const dayOfWeek = current.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const month = current.getMonth();
+
+    // Noise grows with distance from now: ±10% near-term up to ±40% at 1 year
+    const daysOut = blockIndex / 96;
+    const noiseScale = 0.2 + Math.min(0.6, daysOut / 365) * 0.6;
 
     const baseLoad = baseLoadKwhForHour(hour, isWeekend);
-    const noise = 1 + (seededRandom(seed++) - 0.5) * 0.2;
+    const noise = 1 + (seededRandom(seed++) - 0.5) * noiseScale;
     const total = baseLoad * noise;
     const flexRatio = 0.65 + seededRandom(seed++) * 0.1;
 
-    const basePrice = basePriceForHour(hour);
-    const priceNoise = 1 + (seededRandom(seed++) - 0.5) * 0.18;
+    const dayIndex = Math.floor(current.getTime() / 86400000);
+    const negDay = isNegativePriceDay(dayIndex, month);
+    const negPrice = negDay ? negativeDayPrice(hour, dayIndex) : null;
+
+    let priceEurMwh: number;
+    if (negPrice !== null) {
+      const noise =
+        1 + (seededRandom(seed++) - 0.5) * (0.25 + noiseScale * 0.4);
+      priceEurMwh = Math.max(-100, negPrice * noise);
+    } else {
+      const basePrice = basePriceForHour(hour, month, isWeekend);
+      const priceNoise =
+        1 + (seededRandom(seed++) - 0.5) * (0.18 + noiseScale * 0.5);
+      priceEurMwh = Math.max(-100, basePrice * priceNoise);
+    }
 
     blocks.push({
       timestamp: new Date(current),
       flexibleKwh: Math.max(0, total * flexRatio),
       nonFlexibleKwh: Math.max(0, total * (1 - flexRatio)),
-      priceEurMwh: Math.max(0, basePrice * priceNoise),
+      priceEurMwh,
     });
 
     current = addMinutes(current, 15);
+    blockIndex++;
   }
 
   return blocks;
@@ -182,14 +327,17 @@ export function generateBasePriceCurve(date: Date): PriceBlock[] {
   let current = startOfDay(date);
   let seed = date.getTime() % 10000;
 
+  const month = date.getMonth();
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+
   for (let i = 0; i < 96; i++) {
     const hour = current.getHours();
-    const basePrice = basePriceForHour(hour);
+    const basePrice = basePriceForHour(hour, month, isWeekend);
     const noise = 1 + (seededRandom(seed++) - 0.5) * 0.12;
 
     blocks.push({
       timestamp: new Date(current),
-      priceEurMwh: Math.max(0, basePrice * noise),
+      priceEurMwh: Math.max(-100, basePrice * noise),
     });
 
     current = addMinutes(current, 15);
