@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { PriceTable } from '@/components/PriceTable';
 import { SimulationChart } from '@/components/SimulationChart';
+import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
 import { usePriceTableState } from '@/hooks/usePriceTableState';
 import { runSimulation } from '@/data/simulation';
 import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
@@ -20,6 +21,7 @@ export function FlexEditor() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [simulationResult, setSimulationResult] =
     useState<SimulationResult | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const {
     rows,
@@ -29,7 +31,7 @@ export function FlexEditor() {
     getEditedBlocks,
     hasChanges,
   } = usePriceTableState(selectedDate);
-  const { saveVersion } = usePriceCurve();
+  const { saveVersion, restoreVersion } = usePriceCurve();
 
   function handlePaste(startIndex: number, text: string) {
     const lines = text.trim().split('\n').filter(Boolean);
@@ -135,6 +137,15 @@ export function FlexEditor() {
               : format(selectedDate, 'EEEE, d MMMM yyyy')}
           </span>
         )}
+        {selectedDate && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setHistoryOpen(true)}
+          >
+            History
+          </Button>
+        )}
       </div>
 
       <PriceTable rows={rows} onInputChange={setInput} onPaste={handlePaste} />
@@ -185,6 +196,13 @@ export function FlexEditor() {
           )}
         </div>
       )}
+      <VersionHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRestore={(id) => {
+          restoreVersion(id);
+        }}
+      />
     </div>
   );
 }
