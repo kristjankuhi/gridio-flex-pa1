@@ -230,8 +230,10 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
                 border: '1px solid hsl(222 47% 18%)',
                 borderRadius: '6px',
                 fontSize: '12px',
+                color: '#e2e8f0',
               }}
               labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
+              itemStyle={{ color: '#e2e8f0' }}
             />
             <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
 

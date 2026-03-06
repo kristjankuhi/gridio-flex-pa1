@@ -113,7 +113,9 @@ export function FlexibilityImpact({
                 border: '1px solid hsl(222 47% 18%)',
                 borderRadius: '6px',
                 fontSize: '11px',
+                color: '#e2e8f0',
               }}
+              itemStyle={{ color: '#e2e8f0' }}
               formatter={(v: number | undefined) => [
                 v !== undefined ? `${v > 0 ? '+' : ''}${v} kWh` : '',
                 'Shift vs baseline',
