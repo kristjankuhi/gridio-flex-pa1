@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { StatCard } from '@/components/StatCard';
+import { FleetChart } from '@/components/FleetChart';
 import { generateFleetStats } from '@/data/generators';
 
 export function Dashboard() {
@@ -38,7 +39,9 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Chart goes here — Task 8 */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <FleetChart />
+      </div>
     </div>
   );
 }
