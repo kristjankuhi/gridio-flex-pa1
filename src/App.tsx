@@ -5,8 +5,9 @@ import {
 } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { PriceCurveProvider } from './store/priceCurveStore';
+import { SettingsProvider } from './store/settingsStore';
 import { Dashboard } from './pages/Dashboard';
-import { FlexEditor } from './pages/FlexEditor';
+import { PriceEditor } from './pages/PriceEditor';
 import { Settlement } from './pages/Settlement';
 
 const router = createBrowserRouter([
@@ -16,7 +17,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
-      { path: 'flex', element: <FlexEditor /> },
+      { path: 'price-editor', element: <PriceEditor /> },
       { path: 'settlement', element: <Settlement /> },
     ],
   },
@@ -24,8 +25,10 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <PriceCurveProvider>
-      <RouterProvider router={router} />
-    </PriceCurveProvider>
+    <SettingsProvider>
+      <PriceCurveProvider>
+        <RouterProvider router={router} />
+      </PriceCurveProvider>
+    </SettingsProvider>
   );
 }

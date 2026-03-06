@@ -5,6 +5,8 @@ import { cors } from 'hono/cors';
 import { fleetRoutes } from './routes/fleet';
 import { priceCurveRoutes } from './routes/priceCurve';
 import { simulationRoutes } from './routes/simulation';
+import { initPriceCache, scheduleDailyRefresh } from './services/priceService';
+import { startSimulationClock } from './services/simulationClock';
 
 const app = new OpenAPIHono();
 
@@ -34,5 +36,11 @@ app.get('/health', (c) =>
 const PORT = 3000;
 console.log(`Gridio Flex API running at http://localhost:${PORT}`);
 console.log(`Swagger UI: http://localhost:${PORT}/api/docs`);
+
+await initPriceCache();
+scheduleDailyRefresh();
+startSimulationClock((now) => {
+  console.log(`Sim clock: ${now.toISOString()}`);
+});
 
 serve({ fetch: app.fetch, port: PORT });

@@ -4,6 +4,7 @@ import {
   generateHistoricLoad,
   generateForecastLoad,
 } from '@/data/generators';
+import { getSimulatedNow } from '../services/simulationClock';
 import {
   FleetStatsSchema,
   LoadResponseSchema,
@@ -53,12 +54,14 @@ fleetRoutes.openapi(
     const daysAhead =
       window === '1D' ? 1 : window === '1W' ? 2 : window === '1M' ? 5 : 30;
 
+    const simulatedNow = getSimulatedNow();
     const historic = generateHistoricLoad(daysBack);
     const forecast = generateForecastLoad(daysAhead);
     const allBlocks = [...historic, ...forecast];
 
     return c.json({
       window,
+      simulatedNow: simulatedNow.toISOString(),
       blocks: allBlocks.map((b) => ({
         timestamp: b.timestamp.toISOString(),
         flexibleKwh: b.flexibleKwh,

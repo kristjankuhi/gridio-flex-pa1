@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { SettingsPanel } from '@/components/SettingsPanel';
 
 export function TopNav() {
   return (
@@ -23,7 +24,7 @@ export function TopNav() {
               Dashboard
             </NavLink>
             <NavLink
-              to="/flex"
+              to="/price-editor"
               className={({ isActive }) =>
                 `text-sm transition-colors pb-0.5 ${
                   isActive
@@ -32,7 +33,7 @@ export function TopNav() {
                 }`
               }
             >
-              Flex Editor
+              Price Editor
             </NavLink>
             <NavLink
               to="/settlement"
@@ -48,12 +49,15 @@ export function TopNav() {
             </NavLink>
           </nav>
         </div>
-        <Badge
-          variant="secondary"
-          className="text-xs font-normal text-muted-foreground"
-        >
-          v1.0 · Simulated data
-        </Badge>
+        <div className="flex items-center gap-3">
+          <SettingsPanel />
+          <Badge
+            variant="secondary"
+            className="text-xs font-normal text-muted-foreground"
+          >
+            v1.0 · Simulated data
+          </Badge>
+        </div>
       </div>
     </header>
   );

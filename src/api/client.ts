@@ -30,8 +30,11 @@ export const api = {
     stats: (): Promise<FleetStats> => get('/fleet/stats'),
     load: (
       window: TimeWindow
-    ): Promise<{ window: TimeWindow; blocks: TimeBlock[] }> =>
-      get(`/fleet/load?window=${window}`),
+    ): Promise<{
+      window: TimeWindow;
+      simulatedNow: string;
+      blocks: TimeBlock[];
+    }> => get(`/fleet/load?window=${window}`),
   },
   priceCurve: {
     get: (date: string): Promise<PriceBlock[]> =>

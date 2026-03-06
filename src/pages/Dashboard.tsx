@@ -5,10 +5,15 @@ import { PeriodSelector } from '@/components/PeriodSelector';
 import { FlexibilityImpact } from '@/components/FlexibilityImpact';
 import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { api } from '@/api/client';
-import { generateHistoricLoad } from '@/data/generators';
+import {
+  generateHistoricLoad,
+  generateMarketSplitStats,
+} from '@/data/generators';
+import { useSettings } from '@/store/settingsStore';
 import type { FleetStats } from '@/types';
 
 export function Dashboard() {
+  const { settings } = useSettings();
   const [stats, setStats] = useState<FleetStats | null>(null);
   const { timeWindow, setTimeWindow, range, goNext, goPrev, isAtPresent } =
     usePeriodSelector('1D');
@@ -16,6 +21,8 @@ export function Dashboard() {
   useEffect(() => {
     api.fleet.stats().then(setStats).catch(console.error);
   }, []);
+
+  const marketStats = useMemo(() => generateMarketSplitStats(range), [range]);
 
   const periodStats = useMemo(() => {
     if (timeWindow === '1D') return null; // use API snapshot for 1D
@@ -89,6 +96,64 @@ export function Dashboard() {
           unit="%"
         />
       </div>
+
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">
+          Day-Ahead Market
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="DA Load"
+            value={marketStats.daLoadKwh.toLocaleString()}
+            unit="kWh"
+          />
+          <StatCard
+            label="DA Savings"
+            value={`€${marketStats.daSavingsEur.toLocaleString()}`}
+            unit=""
+          />
+          <StatCard
+            label="ID Adjustments"
+            value={marketStats.idAdjustmentsKwh.toLocaleString()}
+            unit="kWh"
+          />
+          <StatCard
+            label="ID Savings"
+            value={`€${marketStats.idSavingsEur.toLocaleString()}`}
+            unit=""
+          />
+        </div>
+      </div>
+
+      {settings.mfrrEnabled && (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">
+            mFRR (Flex 2.0)
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="mFRR Up"
+              value={marketStats.mfrrUpKwh.toLocaleString()}
+              unit="kWh"
+            />
+            <StatCard
+              label="mFRR Down"
+              value={marketStats.mfrrDownKwh.toLocaleString()}
+              unit="kWh"
+            />
+            <StatCard
+              label="mFRR Revenue"
+              value={`€${marketStats.mfrrRevenueEur.toLocaleString()}`}
+              unit=""
+            />
+            <StatCard
+              label="Delivery Rate"
+              value={marketStats.mfrrDeliveryRatePct.toString()}
+              unit="%"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-lg p-6">
         <FleetChart range={range} timeWindow={timeWindow} />

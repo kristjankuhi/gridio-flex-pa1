@@ -9,8 +9,8 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { format } from 'date-fns';
 import { generateActivationHistory } from '@/data/generators';
+import { buildTimeBuckets, getBucketLabel } from '@/data/chartBuckets';
 import type { PeriodRange, TimeWindow } from '@/types';
 
 const GREEN = '#10b981';
@@ -46,14 +46,23 @@ export function FlexibilityImpact({
     .filter((a) => a.type === 'mfrr')
     .reduce((s, a) => s + a.revenueEur, 0);
 
-  const deltaData = activations
-    .flatMap((a) =>
-      a.blocks.map((b) => ({
-        label: format(b.timestamp, timeWindow === '1D' ? 'HH:mm' : 'd MMM'),
-        deltaKwh: Math.round(b.deltaKwh),
-      }))
-    )
-    .slice(0, 200);
+  const bucketLabels = buildTimeBuckets(range, timeWindow);
+  const bucketTotals = new Map<string, number>(bucketLabels.map((l) => [l, 0]));
+  for (const a of activations) {
+    for (const b of a.blocks) {
+      const label = getBucketLabel(b.timestamp, timeWindow);
+      if (bucketTotals.has(label)) {
+        bucketTotals.set(
+          label,
+          (bucketTotals.get(label) ?? 0) + Math.round(b.deltaKwh)
+        );
+      }
+    }
+  }
+  const deltaData = bucketLabels.map((label) => ({
+    label,
+    deltaKwh: bucketTotals.get(label) ?? 0,
+  }));
 
   const kpis = [
     {

@@ -17,7 +17,7 @@ export function PriceTable({ rows, onInputChange, onPaste }: PriceTableProps) {
   }
 
   return (
-    <div className="overflow-auto max-h-[520px] rounded-md border border-border">
+    <div className="rounded-md border border-border">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-card z-10">
           <tr className="border-b border-border">
@@ -62,11 +62,38 @@ export function PriceTable({ rows, onInputChange, onPaste }: PriceTableProps) {
                       type="number"
                       step="0.1"
                       min="0"
+                      data-row={row.index}
                       value={row.newPriceInput}
                       onChange={(e) => onInputChange(row.index, e.target.value)}
                       onPaste={(e) => {
                         e.preventDefault();
                         onPaste(row.index, e.clipboardData.getData('text'));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          const next = rows.find(
+                            (r) => r.index > row.index && !r.isPast
+                          );
+                          if (next)
+                            document
+                              .querySelector<HTMLInputElement>(
+                                `[data-row="${next.index}"]`
+                              )
+                              ?.focus();
+                        }
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          const prev = [...rows]
+                            .reverse()
+                            .find((r) => r.index < row.index && !r.isPast);
+                          if (prev)
+                            document
+                              .querySelector<HTMLInputElement>(
+                                `[data-row="${prev.index}"]`
+                              )
+                              ?.focus();
+                        }
                       }}
                       placeholder={row.currentPriceEurMwh.toFixed(1)}
                       className={`w-28 text-right bg-transparent border rounded px-2 py-0.5 text-xs font-mono outline-none transition-colors
