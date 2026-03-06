@@ -7,14 +7,14 @@ import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { api } from '@/api/client';
 import {
   generateHistoricLoad,
+  generateFleetStats,
   generateMarketSplitStats,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
-import type { FleetStats } from '@/types';
 
 export function Dashboard() {
   const { settings } = useSettings();
-  const [stats, setStats] = useState<FleetStats | null>(null);
+  const [stats, setStats] = useState<FleetStats>(() => generateFleetStats());
   const {
     timeWindow,
     setTimeWindow,
