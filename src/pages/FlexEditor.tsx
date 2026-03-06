@@ -11,9 +11,7 @@ import { PriceTable } from '@/components/PriceTable';
 import { SimulationChart } from '@/components/SimulationChart';
 import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
 import { usePriceTableState } from '@/hooks/usePriceTableState';
-import { runSimulation } from '@/data/simulation';
-import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
-import { usePriceCurve } from '@/store/priceCurveStore';
+import { api } from '@/api/client';
 import type { SimulationResult } from '@/types';
 
 export function FlexEditor() {
@@ -23,15 +21,8 @@ export function FlexEditor() {
     useState<SimulationResult | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const {
-    rows,
-    baseBlocks,
-    setInput,
-    clearInputs,
-    getEditedBlocks,
-    hasChanges,
-  } = usePriceTableState(selectedDate);
-  const { saveVersion, restoreVersion } = usePriceCurve();
+  const { rows, setInput, clearInputs, getEditedBlocks, hasChanges } =
+    usePriceTableState(selectedDate);
 
   function handlePaste(startIndex: number, text: string) {
     const lines = text.trim().split('\n').filter(Boolean);
@@ -66,26 +57,28 @@ export function FlexEditor() {
     });
   }
 
-  function handleSimulate() {
+  async function handleSimulate() {
     if (!selectedDate) return;
     const editedBlocks = getEditedBlocks();
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const forecastBlocks = generateForecastLoad(2).filter(
-      (b) => format(b.timestamp, 'yyyy-MM-dd') === dateStr
-    );
-    if (forecastBlocks.length === 0) {
-      const historicBlocks = generateHistoricLoad(1).filter(
-        (b) => format(b.timestamp, 'yyyy-MM-dd') === dateStr
-      );
-      setSimulationResult(runSimulation(historicBlocks, editedBlocks));
-    } else {
-      setSimulationResult(runSimulation(forecastBlocks, editedBlocks));
-    }
+    const result = await api.simulation.run(dateStr, editedBlocks);
+    setSimulationResult({
+      baseline: result.baseline.map((b) => ({
+        ...b,
+        timestamp: new Date(b.timestamp),
+      })),
+      projected: result.projected.map((b) => ({
+        ...b,
+        timestamp: new Date(b.timestamp),
+      })),
+    });
   }
 
-  function handleSave() {
+  async function handleSave() {
+    if (!selectedDate) return;
     const editedBlocks = getEditedBlocks();
-    saveVersion(editedBlocks, baseBlocks);
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    await api.priceCurve.save(dateStr, editedBlocks);
     clearInputs();
     setSimulationResult(null);
   }
@@ -163,13 +156,13 @@ export function FlexEditor() {
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={handleSimulate}
+                onClick={() => void handleSimulate()}
                 disabled={!hasChanges}
               >
                 Simulate →
               </Button>
               <Button
-                onClick={handleSave}
+                onClick={() => void handleSave()}
                 disabled={!hasChanges}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
@@ -186,7 +179,7 @@ export function FlexEditor() {
                   Discard
                 </Button>
                 <Button
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   Save & Activate
@@ -199,9 +192,7 @@ export function FlexEditor() {
       <VersionHistoryPanel
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        onRestore={(id) => {
-          restoreVersion(id);
-        }}
+        onRestore={() => {}}
       />
     </div>
   );

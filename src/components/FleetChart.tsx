@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ComposedChart,
   Bar,
@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { format } from 'date-fns';
-import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
+import { api } from '@/api/client';
 import type { TimeWindow, TimeBlock } from '@/types';
 
 const WINDOWS: TimeWindow[] = ['1D', '1W', '1M', '1Y'];
@@ -119,28 +119,23 @@ const DARK_GREY = '#334155';
 
 export function FleetChart() {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('1D');
+  const [blocks, setBlocks] = useState<TimeBlock[]>([]);
 
-  const data = useMemo(() => {
-    const daysBack =
-      timeWindow === '1D'
-        ? 1
-        : timeWindow === '1W'
-          ? 7
-          : timeWindow === '1M'
-            ? 30
-            : 365;
-    const daysAhead =
-      timeWindow === '1D'
-        ? 1
-        : timeWindow === '1W'
-          ? 2
-          : timeWindow === '1M'
-            ? 5
-            : 30;
-    const historic = generateHistoricLoad(daysBack);
-    const forecast = generateForecastLoad(daysAhead);
-    return aggregateBlocks([...historic, ...forecast], timeWindow);
+  useEffect(() => {
+    api.fleet
+      .load(timeWindow)
+      .then((res) => {
+        setBlocks(
+          res.blocks.map((b) => ({ ...b, timestamp: new Date(b.timestamp) }))
+        );
+      })
+      .catch(console.error);
   }, [timeWindow]);
+
+  const data = useMemo(
+    () => aggregateBlocks(blocks, timeWindow),
+    [blocks, timeWindow]
+  );
 
   return (
     <div className="space-y-4">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import {
   Sheet,
@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { usePriceCurve } from '@/store/priceCurveStore';
+import { api } from '@/api/client';
+import type { PriceCurveVersion } from '@/types';
 
 interface VersionHistoryPanelProps {
   open: boolean;
@@ -21,8 +22,28 @@ export function VersionHistoryPanel({
   onClose,
   onRestore,
 }: VersionHistoryPanelProps) {
-  const { versions } = usePriceCurve();
+  const [versions, setVersions] = useState<PriceCurveVersion[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      api.priceCurve
+        .versions()
+        .then((v) =>
+          setVersions(
+            v.map((ver) => ({ ...ver, createdAt: new Date(ver.createdAt) }))
+          )
+        )
+        .catch(console.error);
+    }
+  }, [open]);
+
+  async function handleRestore(id: string) {
+    await api.priceCurve.restore(id);
+    onRestore(id);
+    setPreviewId(null);
+    onClose();
+  }
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -70,11 +91,7 @@ export function VersionHistoryPanel({
           <div className="absolute bottom-6 left-6 right-6">
             <Button
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => {
-                onRestore(previewId);
-                setPreviewId(null);
-                onClose();
-              }}
+              onClick={() => void handleRestore(previewId)}
             >
               Restore this version
             </Button>

@@ -1,10 +1,18 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { StatCard } from '@/components/StatCard';
 import { FleetChart } from '@/components/FleetChart';
-import { generateFleetStats } from '@/data/generators';
+import { api } from '@/api/client';
+import type { FleetStats } from '@/types';
 
 export function Dashboard() {
-  const stats = useMemo(() => generateFleetStats(), []);
+  const [stats, setStats] = useState<FleetStats | null>(null);
+
+  useEffect(() => {
+    api.fleet.stats().then(setStats).catch(console.error);
+  }, []);
+
+  if (!stats)
+    return <div className="text-muted-foreground text-sm">Loading...</div>;
 
   return (
     <div className="space-y-8">
