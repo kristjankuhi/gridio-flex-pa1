@@ -201,3 +201,97 @@ export function generateBasePriceCurve(date: Date): PriceBlock[] {
 export function formatBlockTime(date: Date): string {
   return format(date, 'HH:mm');
 }
+
+export interface ActivationRecord {
+  id: string;
+  timestamp: Date;
+  type: 'price-curve' | 'mfrr';
+  direction: 'up' | 'down' | null;
+  requestedKw: number | null;
+  deliveredKw: number | null;
+  durationMin: number;
+  baselineKwh: number;
+  actualKwh: number;
+  shiftedKwh: number;
+  revenueEur: number;
+  blocks: Array<{
+    timestamp: Date;
+    baselineKwh: number;
+    actualKwh: number;
+    deltaKwh: number;
+    priceEurMwh: number;
+    valueEur: number;
+  }>;
+}
+
+export function generateActivationHistory(
+  daysBack: number
+): ActivationRecord[] {
+  const records: ActivationRecord[] = [];
+  const now = new Date();
+  let seed = 42;
+
+  for (let d = daysBack; d >= 0; d--) {
+    const day = subDays(now, d);
+    const count = 2 + Math.floor(seededRandom(seed++) * 3);
+    for (let i = 0; i < count; i++) {
+      const hour = 6 + Math.floor(seededRandom(seed++) * 16);
+      const ts = new Date(day);
+      ts.setHours(hour, 0, 0, 0);
+      if (ts > now) continue;
+
+      const isMfrr = seededRandom(seed++) > 0.5;
+      const direction: 'up' | 'down' =
+        seededRandom(seed++) > 0.5 ? 'down' : 'up';
+      const durationMin = isMfrr
+        ? 30
+        : 60 + Math.floor(seededRandom(seed++) * 120);
+      const numBlocks = Math.round(durationMin / 15);
+      const baselinePerBlock = 60 + seededRandom(seed++) * 80;
+      const shiftRatio =
+        (0.3 + seededRandom(seed++) * 0.4) * (direction === 'down' ? -1 : 1);
+      const price = 40 + seededRandom(seed++) * 60;
+
+      const blockData = Array.from({ length: numBlocks }, (_, bi) => {
+        const bts = new Date(ts.getTime() + bi * 15 * 60000);
+        const baseline =
+          baselinePerBlock * (1 + (seededRandom(seed++) - 0.5) * 0.2);
+        const delta = baseline * shiftRatio;
+        const actual = Math.max(0, baseline + delta);
+        const value = Math.abs(delta) * (price / 1000) * (isMfrr ? 2.5 : 1);
+        return {
+          timestamp: bts,
+          baselineKwh: baseline,
+          actualKwh: actual,
+          deltaKwh: delta,
+          priceEurMwh: price,
+          valueEur: value,
+        };
+      });
+
+      const totalBaseline = blockData.reduce((s, b) => s + b.baselineKwh, 0);
+      const totalActual = blockData.reduce((s, b) => s + b.actualKwh, 0);
+      const totalRevenue = blockData.reduce((s, b) => s + b.valueEur, 0);
+
+      records.push({
+        id: `act_${d}_${i}`,
+        timestamp: ts,
+        type: isMfrr ? 'mfrr' : 'price-curve',
+        direction: isMfrr ? direction : null,
+        requestedKw: isMfrr
+          ? 1000 + Math.round(seededRandom(seed++) * 1500)
+          : null,
+        deliveredKw: isMfrr
+          ? Math.round((1000 + seededRandom(seed++) * 1500) * 0.85)
+          : null,
+        durationMin,
+        baselineKwh: totalBaseline,
+        actualKwh: totalActual,
+        shiftedKwh: totalActual - totalBaseline,
+        revenueEur: totalRevenue,
+        blocks: blockData,
+      });
+    }
+  }
+  return records;
+}

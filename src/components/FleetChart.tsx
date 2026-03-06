@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   ComposedChart,
   Bar,
@@ -9,158 +9,160 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
+  Cell,
 } from 'recharts';
-import { format } from 'date-fns';
-import { api } from '@/api/client';
-import type { TimeWindow, TimeBlock } from '@/types';
+import { format, startOfDay } from 'date-fns';
+import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
+import type { TimeWindow, PeriodRange } from '@/types';
 
-const WINDOWS: TimeWindow[] = ['1D', '1W', '1M', '1Y'];
+const TEAL = '#00c9a7';
+const AMBER = '#f59e0b';
+const DARK_GREY = '#334155';
+const CAPACITY_KW = 3280;
 
 interface ChartDataPoint {
   label: string;
   flexibleKwh: number;
   nonFlexibleKwh: number;
-  priceEurMwh: number;
+  priceHistoric: number | null;
+  priceForecast: number | null;
+  isForecast: boolean;
 }
 
 function aggregateBlocks(
-  blocks: TimeBlock[],
+  historicBlocks: ReturnType<typeof generateHistoricLoad>,
+  forecastBlocks: ReturnType<typeof generateForecastLoad>,
   timeWindow: TimeWindow
 ): ChartDataPoint[] {
+  type RawBlock = {
+    timestamp: Date;
+    flexibleKwh: number;
+    nonFlexibleKwh: number;
+    priceEurMwh: number;
+    isForecast: boolean;
+  };
+  const all: RawBlock[] = [
+    ...historicBlocks.map((b) => ({ ...b, isForecast: false })),
+    ...forecastBlocks.map((b) => ({ ...b, isForecast: true })),
+  ];
+
   if (timeWindow === '1D') {
-    return blocks.map((b) => ({
+    return all.map((b) => ({
       label: format(b.timestamp, 'HH:mm'),
       flexibleKwh: Math.round(b.flexibleKwh),
       nonFlexibleKwh: Math.round(b.nonFlexibleKwh),
-      priceEurMwh: Math.round(b.priceEurMwh * 10) / 10,
+      priceHistoric: b.isForecast ? null : Math.round(b.priceEurMwh * 10) / 10,
+      priceForecast: b.isForecast ? Math.round(b.priceEurMwh * 10) / 10 : null,
+      isForecast: b.isForecast,
     }));
   }
 
-  if (timeWindow === '1W') {
-    const buckets = new Map<
-      string,
-      { flex: number; nonFlex: number; prices: number[] }
-    >();
-    blocks.forEach((b) => {
-      const bucketStart = new Date(b.timestamp);
-      bucketStart.setMinutes(0, 0, 0);
-      const hour = bucketStart.getHours();
-      const bucketHour = Math.floor(hour / 6) * 6;
-      bucketStart.setHours(bucketHour);
-      const key = bucketStart.toISOString();
-      const existing = buckets.get(key) ?? { flex: 0, nonFlex: 0, prices: [] };
-      existing.flex += b.flexibleKwh;
-      existing.nonFlex += b.nonFlexibleKwh;
-      existing.prices.push(b.priceEurMwh);
-      buckets.set(key, existing);
-    });
-    return Array.from(buckets.entries()).map(([key, val]) => ({
-      label: format(new Date(key), 'EEE HH:mm'),
-      flexibleKwh: Math.round(val.flex),
-      nonFlexibleKwh: Math.round(val.nonFlex),
-      priceEurMwh:
-        Math.round(
-          (val.prices.reduce((a, b) => a + b, 0) / val.prices.length) * 10
-        ) / 10,
-    }));
-  }
-
-  if (timeWindow === '1M') {
-    const buckets = new Map<
-      string,
-      { flex: number; nonFlex: number; prices: number[] }
-    >();
-    blocks.forEach((b) => {
-      const key = format(b.timestamp, 'yyyy-MM-dd');
-      const existing = buckets.get(key) ?? { flex: 0, nonFlex: 0, prices: [] };
-      existing.flex += b.flexibleKwh;
-      existing.nonFlex += b.nonFlexibleKwh;
-      existing.prices.push(b.priceEurMwh);
-      buckets.set(key, existing);
-    });
-    return Array.from(buckets.entries()).map(([key, val]) => ({
-      label: format(new Date(key), 'd MMM'),
-      flexibleKwh: Math.round(val.flex),
-      nonFlexibleKwh: Math.round(val.nonFlex),
-      priceEurMwh:
-        Math.round(
-          (val.prices.reduce((a, b) => a + b, 0) / val.prices.length) * 10
-        ) / 10,
-    }));
-  }
-
-  // 1Y — monthly aggregates
   const buckets = new Map<
     string,
-    { flex: number; nonFlex: number; prices: number[] }
+    { flex: number; nonFlex: number; prices: number[]; isForecast: boolean }
   >();
-  blocks.forEach((b) => {
-    const key = format(b.timestamp, 'yyyy-MM');
-    const existing = buckets.get(key) ?? { flex: 0, nonFlex: 0, prices: [] };
+
+  const getBucketKey = (b: RawBlock): string => {
+    if (timeWindow === '1W') {
+      const s = new Date(b.timestamp);
+      s.setMinutes(0, 0, 0);
+      s.setHours(Math.floor(s.getHours() / 6) * 6);
+      return s.toISOString();
+    }
+    if (timeWindow === '1M') return format(b.timestamp, 'yyyy-MM-dd');
+    return format(b.timestamp, 'yyyy-MM');
+  };
+
+  all.forEach((b) => {
+    const key = getBucketKey(b);
+    const existing = buckets.get(key) ?? {
+      flex: 0,
+      nonFlex: 0,
+      prices: [],
+      isForecast: b.isForecast,
+    };
     existing.flex += b.flexibleKwh;
     existing.nonFlex += b.nonFlexibleKwh;
     existing.prices.push(b.priceEurMwh);
+    if (b.isForecast) existing.isForecast = true;
     buckets.set(key, existing);
   });
-  return Array.from(buckets.entries()).map(([key, val]) => ({
-    label: format(new Date(key + '-01'), 'MMM yyyy'),
-    flexibleKwh: Math.round(val.flex),
-    nonFlexibleKwh: Math.round(val.nonFlex),
-    priceEurMwh:
-      Math.round(
-        (val.prices.reduce((a, b) => a + b, 0) / val.prices.length) * 10
-      ) / 10,
-  }));
+
+  return Array.from(buckets.entries()).map(([key, val]) => {
+    const avgPrice = val.prices.reduce((a, b) => a + b, 0) / val.prices.length;
+    const label =
+      timeWindow === '1W'
+        ? format(new Date(key), 'EEE HH:mm')
+        : timeWindow === '1M'
+          ? format(new Date(key), 'd MMM')
+          : format(new Date(key + '-01'), 'MMM yyyy');
+    return {
+      label,
+      flexibleKwh: Math.round(val.flex),
+      nonFlexibleKwh: Math.round(val.nonFlex),
+      priceHistoric: val.isForecast ? null : Math.round(avgPrice * 10) / 10,
+      priceForecast: val.isForecast ? Math.round(avgPrice * 10) / 10 : null,
+      isForecast: val.isForecast,
+    };
+  });
 }
 
-const TEAL = '#00c9a7';
-const AMBER = '#f59e0b';
-const DARK_GREY = '#334155';
+function getNowLabel(timeWindow: TimeWindow): string {
+  const now = new Date();
+  if (timeWindow === '1D') {
+    const rounded = new Date(now);
+    rounded.setMinutes(Math.floor(now.getMinutes() / 15) * 15, 0, 0);
+    return format(rounded, 'HH:mm');
+  }
+  if (timeWindow === '1W') {
+    const s = new Date(now);
+    s.setMinutes(0, 0, 0);
+    s.setHours(Math.floor(s.getHours() / 6) * 6);
+    return format(s, 'EEE HH:mm');
+  }
+  if (timeWindow === '1M') return format(now, 'd MMM');
+  return format(now, 'MMM yyyy');
+}
 
-export function FleetChart() {
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>('1D');
-  const [blocks, setBlocks] = useState<TimeBlock[]>([]);
+interface FleetChartProps {
+  range: PeriodRange;
+  timeWindow: TimeWindow;
+}
 
-  useEffect(() => {
-    api.fleet
-      .load(timeWindow)
-      .then((res) => {
-        setBlocks(
-          res.blocks.map((b) => ({ ...b, timestamp: new Date(b.timestamp) }))
-        );
-      })
-      .catch(console.error);
-  }, [timeWindow]);
+export function FleetChart({ range, timeWindow }: FleetChartProps) {
+  const now = new Date();
 
-  const data = useMemo(
-    () => aggregateBlocks(blocks, timeWindow),
-    [blocks, timeWindow]
-  );
+  const data = useMemo(() => {
+    const daysBack = Math.max(
+      1,
+      Math.ceil((now.getTime() - range.start.getTime()) / 86400000) + 1
+    );
+    const daysAhead = Math.max(
+      1,
+      Math.ceil((range.end.getTime() - startOfDay(now).getTime()) / 86400000) +
+        1
+    );
+
+    const historic = generateHistoricLoad(daysBack).filter(
+      (b) => b.timestamp >= range.start && b.timestamp <= range.end
+    );
+    const forecast = generateForecastLoad(daysAhead).filter(
+      (b) => b.timestamp >= range.start && b.timestamp <= range.end
+    );
+
+    return aggregateBlocks(historic, forecast, timeWindow);
+  }, [range, timeWindow]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nowLabel = getNowLabel(timeWindow);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-medium">Fleet Load & Price</h2>
-          <p className="text-xs text-muted-foreground">
-            Historic + forecast charging behaviour
-          </p>
-        </div>
-        <div className="flex gap-1 bg-muted rounded-md p-1">
-          {WINDOWS.map((w) => (
-            <button
-              key={w}
-              onClick={() => setTimeWindow(w)}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
-                timeWindow === w
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {w}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h2 className="text-sm font-medium">Fleet Load & Price</h2>
+        <p className="text-xs text-muted-foreground">
+          Historic + forecast charging behaviour
+        </p>
       </div>
 
       <div className="h-72 w-full">
@@ -208,32 +210,88 @@ export function FleetChart() {
               labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
             />
             <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
+
+            {/* Capacity ceiling */}
+            <ReferenceLine
+              yAxisId="kwh"
+              y={CAPACITY_KW}
+              stroke="#475569"
+              strokeDasharray="4 4"
+              label={{
+                value: 'Opted-in capacity',
+                fill: '#475569',
+                fontSize: 10,
+                position: 'insideTopRight',
+              }}
+            />
+
+            {/* Now marker */}
+            <ReferenceLine
+              x={nowLabel}
+              stroke="rgba(255,255,255,0.35)"
+              strokeDasharray="3 3"
+              label={{
+                value: 'Now',
+                fill: 'rgba(255,255,255,0.35)',
+                fontSize: 10,
+                position: 'top',
+              }}
+            />
+
             <Bar
               yAxisId="kwh"
               dataKey="flexibleKwh"
-              name="Flexible"
+              name="Opted-in flexible"
               stackId="load"
-              fill={TEAL}
               radius={[0, 0, 0, 0]}
               maxBarSize={24}
-            />
+            >
+              {data.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={TEAL}
+                  fillOpacity={entry.isForecast ? 0.4 : 1}
+                />
+              ))}
+            </Bar>
             <Bar
               yAxisId="kwh"
               dataKey="nonFlexibleKwh"
-              name="Non-flexible"
+              name="Non-opted-in"
               stackId="load"
-              fill={DARK_GREY}
               radius={[2, 2, 0, 0]}
               maxBarSize={24}
-            />
+            >
+              {data.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={DARK_GREY}
+                  fillOpacity={entry.isForecast ? 0.4 : 1}
+                />
+              ))}
+            </Bar>
+
             <Line
               yAxisId="price"
               type="monotone"
-              dataKey="priceEurMwh"
+              dataKey="priceHistoric"
               name="Price (€/MWh)"
               stroke={AMBER}
               strokeWidth={1.5}
               dot={false}
+              connectNulls={false}
+            />
+            <Line
+              yAxisId="price"
+              type="monotone"
+              dataKey="priceForecast"
+              name="Forecast price"
+              stroke={AMBER}
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              dot={false}
+              connectNulls={false}
+              legendType="none"
             />
           </ComposedChart>
         </ResponsiveContainer>

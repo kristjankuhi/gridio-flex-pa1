@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { PriceCurveProvider } from './store/priceCurveStore';
 import { Dashboard } from './pages/Dashboard';
 import { FlexEditor } from './pages/FlexEditor';
+import { Settlement } from './pages/Settlement';
 
 const router = createBrowserRouter([
   {
@@ -16,6 +17,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'flex', element: <FlexEditor /> },
+      { path: 'settlement', element: <Settlement /> },
     ],
   },
 ]);

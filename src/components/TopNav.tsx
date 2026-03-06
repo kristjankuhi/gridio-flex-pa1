@@ -34,6 +34,18 @@ export function TopNav() {
             >
               Flex Editor
             </NavLink>
+            <NavLink
+              to="/settlement"
+              className={({ isActive }) =>
+                `text-sm transition-colors pb-0.5 ${
+                  isActive
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`
+              }
+            >
+              Settlement
+            </NavLink>
           </nav>
         </div>
         <Badge

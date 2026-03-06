@@ -27,6 +27,12 @@ export interface PriceCurveVersion {
 
 export type TimeWindow = '1D' | '1W' | '1M' | '1Y';
 
+export interface PeriodRange {
+  start: Date;
+  end: Date;
+  label: string;
+}
+
 export interface SimulationResult {
   baseline: TimeBlock[];
   projected: TimeBlock[];
