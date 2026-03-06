@@ -5,6 +5,7 @@ import {
   generateForecastLoad,
 } from '@/data/generators';
 import { getSimulatedNow } from '../services/simulationClock';
+import { applyRealPrices } from '../services/priceService';
 import {
   FleetStatsSchema,
   LoadResponseSchema,
@@ -57,7 +58,7 @@ fleetRoutes.openapi(
     const simulatedNow = getSimulatedNow();
     const historic = generateHistoricLoad(daysBack);
     const forecast = generateForecastLoad(daysAhead);
-    const allBlocks = [...historic, ...forecast];
+    const allBlocks = applyRealPrices([...historic, ...forecast]);
 
     return c.json({
       window,

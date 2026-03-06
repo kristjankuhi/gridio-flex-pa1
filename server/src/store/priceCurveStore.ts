@@ -5,9 +5,11 @@ import type { PriceCurveVersion, PriceBlock } from '@/types';
 
 function seedInitialVersion(): PriceCurveVersion {
   const today = new Date();
+  const date = format(today, 'yyyy-MM-dd');
   const blocks = generateBasePriceCurve(today);
   return {
     id: nanoid(),
+    date,
     createdAt: new Date(),
     blocks,
     summary: 'Initial price curve (auto-generated)',
@@ -17,16 +19,20 @@ function seedInitialVersion(): PriceCurveVersion {
 
 let versions: PriceCurveVersion[] = [seedInitialVersion()];
 
-export function getVersions(): PriceCurveVersion[] {
+export function getVersions(date?: string): PriceCurveVersion[] {
+  if (date) return versions.filter((v) => v.date === date);
   return versions;
 }
 
-export function getActiveVersion(): PriceCurveVersion | undefined {
-  return versions.find((v) => v.isActive);
+export function getActiveVersion(date: string): PriceCurveVersion | undefined {
+  return versions.find((v) => v.date === date && v.isActive);
 }
 
-export function saveVersion(blocks: PriceBlock[]): PriceCurveVersion {
-  const active = getActiveVersion();
+export function saveVersion(
+  date: string,
+  blocks: PriceBlock[]
+): PriceCurveVersion {
+  const active = getActiveVersion(date);
   const changedBlocks = active
     ? blocks.filter((b, i) => {
         const ab = active.blocks[i];
@@ -48,19 +54,28 @@ export function saveVersion(blocks: PriceBlock[]): PriceCurveVersion {
 
   const newVersion: PriceCurveVersion = {
     id: nanoid(),
+    date,
     createdAt: new Date(),
     blocks,
     summary,
     isActive: true,
   };
 
-  versions = [newVersion, ...versions.map((v) => ({ ...v, isActive: false }))];
+  // Deactivate previous versions for this date only; other dates unaffected
+  versions = [
+    newVersion,
+    ...versions.map((v) => (v.date === date ? { ...v, isActive: false } : v)),
+  ];
   return newVersion;
 }
 
 export function restoreVersion(id: string): PriceCurveVersion | null {
   const target = versions.find((v) => v.id === id);
   if (!target) return null;
-  versions = versions.map((v) => ({ ...v, isActive: v.id === id }));
+  // Deactivate all versions for the same date, then activate the target
+  versions = versions.map((v) => ({
+    ...v,
+    isActive: v.id === id ? true : v.date === target.date ? false : v.isActive,
+  }));
   return { ...target, isActive: true };
 }

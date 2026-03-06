@@ -59,6 +59,16 @@ export function getPriceCacheFor15MinBlock(timestamp: Date): number | null {
   return match?.priceEurMwh ?? null;
 }
 
+export function applyRealPrices<
+  T extends { timestamp: Date; priceEurMwh: number },
+>(blocks: T[]): T[] {
+  if (priceCache.length === 0) return blocks;
+  return blocks.map((b) => {
+    const realPrice = getPriceCacheFor15MinBlock(b.timestamp);
+    return realPrice !== null ? { ...b, priceEurMwh: realPrice } : b;
+  });
+}
+
 export function interpolateTo15Min(hourly: HourlyPrice[]): HourlyPrice[] {
   const result: HourlyPrice[] = [];
   for (const { timestamp, priceEurMwh } of hourly) {

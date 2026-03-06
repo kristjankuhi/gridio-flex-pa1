@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { generateBasePriceCurve } from '@/data/generators';
+import { applyRealPrices } from '../services/priceService';
 import {
   PriceBlockSchema,
   PriceCurveVersionSchema,
@@ -23,7 +24,7 @@ priceCurveRoutes.openapi(
     tags: ['Price Curve'],
     summary: 'Get active price curve for a date',
     description:
-      'Returns the 96 × 15-minute price blocks for the requested date. Uses the active version if one exists, otherwise returns the base simulated curve.',
+      'Returns the 96 × 15-minute price blocks for the requested date. Uses the active saved version for that date if one exists, otherwise returns real Belgian DA prices (or synthetic fallback).',
     request: {
       query: z.object({
         date: z.string().date().describe('Date in YYYY-MM-DD format'),
@@ -38,8 +39,9 @@ priceCurveRoutes.openapi(
   }),
   (c) => {
     const { date } = c.req.valid('query');
-    const active = getActiveVersion();
-    const blocks = active?.blocks ?? generateBasePriceCurve(new Date(date));
+    const active = getActiveVersion(date);
+    const blocks =
+      active?.blocks ?? applyRealPrices(generateBasePriceCurve(new Date(date)));
     return c.json(
       blocks.map((b) => ({
         timestamp: new Date(b.timestamp).toISOString(),
@@ -55,19 +57,31 @@ priceCurveRoutes.openapi(
     method: 'get',
     path: '/price-curve/versions',
     tags: ['Price Curve'],
-    summary: 'List all price curve versions',
+    summary: 'List price curve versions',
+    description:
+      'Returns saved versions. Pass ?date=YYYY-MM-DD to filter by date.',
+    request: {
+      query: z.object({
+        date: z
+          .string()
+          .date()
+          .optional()
+          .describe('Filter by date (YYYY-MM-DD)'),
+      }),
+    },
     responses: {
       200: {
         content: {
           'application/json': { schema: z.array(PriceCurveVersionSchema) },
         },
         description:
-          'All versions, newest first. Active version has isActive: true.',
+          'Versions, newest first. Active version has isActive: true.',
       },
     },
   }),
   (c) => {
-    const versionList = getVersions().map((v) => ({
+    const { date } = c.req.valid('query');
+    const versionList = getVersions(date).map((v) => ({
       ...v,
       createdAt: v.createdAt.toISOString(),
       blocks: v.blocks.map((b) => ({
@@ -87,7 +101,7 @@ priceCurveRoutes.openapi(
     tags: ['Price Curve'],
     summary: 'Save a new price curve version',
     description:
-      'Saves the provided price curve as a new active version. Previous active version is retained in history.',
+      'Saves the provided price curve as the new active version for that date. Previous active version for the same date is retained in history.',
     request: {
       body: {
         content: { 'application/json': { schema: SaveVersionBodySchema } },
@@ -106,7 +120,7 @@ priceCurveRoutes.openapi(
       timestamp: new Date(b.timestamp),
       priceEurMwh: b.priceEurMwh,
     }));
-    const version = saveVersion(blocks);
+    const version = saveVersion(body.date, blocks);
     return c.json(
       {
         ...version,
@@ -128,7 +142,8 @@ priceCurveRoutes.openapi(
     path: '/price-curve/versions/{id}/restore',
     tags: ['Price Curve'],
     summary: 'Restore a previous version',
-    description: 'Sets the specified version as the active price curve.',
+    description:
+      'Sets the specified version as the active price curve for its date.',
     request: {
       params: z.object({ id: z.string() }),
     },

@@ -13,12 +13,14 @@ import type { PriceCurveVersion } from '@/types';
 
 interface VersionHistoryPanelProps {
   open: boolean;
+  date: string; // YYYY-MM-DD — filters versions to this date
   onClose: () => void;
   onRestore: (versionId: string) => void;
 }
 
 export function VersionHistoryPanel({
   open,
+  date,
   onClose,
   onRestore,
 }: VersionHistoryPanelProps) {
@@ -28,7 +30,7 @@ export function VersionHistoryPanel({
   useEffect(() => {
     if (open) {
       api.priceCurve
-        .versions()
+        .versions(date)
         .then((v) =>
           setVersions(
             v.map((ver) => ({ ...ver, createdAt: new Date(ver.createdAt) }))
@@ -36,7 +38,7 @@ export function VersionHistoryPanel({
         )
         .catch(console.error);
     }
-  }, [open]);
+  }, [open, date]);
 
   async function handleRestore(id: string) {
     await api.priceCurve.restore(id);
