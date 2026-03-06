@@ -13,6 +13,7 @@ Install these once on a new machine:
 - **Node.js 20+** — https://nodejs.org (LTS recommended)
 - **Git** — https://git-scm.com
 - **GitHub CLI** — https://cli.github.com (needed to create repos and manage PRs)
+- **Claude Code** _(optional)_ — https://claude.ai/code — AI coding assistant, see [Claude Code setup](#claude-code-setup) below
 
 ---
 
@@ -121,6 +122,42 @@ If you need to connect a fresh Vercel project:
 ├── vite.config.ts              # Vite + Vitest + Tailwind config
 └── .prettierrc                 # Prettier config
 ```
+
+---
+
+## Claude Code setup
+
+[Claude Code](https://claude.ai/code) is an AI coding assistant that works in your terminal. The project includes a `CLAUDE.md` file that Claude reads automatically to understand the codebase, domain, and commands — no manual context-setting needed.
+
+### Install
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### Authenticate
+
+```bash
+claude login
+```
+
+This opens a browser to sign in with your Anthropic account. You need a Claude Pro or Team subscription, or an API key from https://console.anthropic.com.
+
+### Run
+
+```bash
+# From the app_workspace directory
+claude
+```
+
+Claude will automatically pick up `CLAUDE.md` and know about the project commands, domain, and structure. You can then ask it to implement features, fix bugs, write tests, etc.
+
+### Tips for this project
+
+- **Ask in plain English** — e.g. "add a dashboard page showing fleet status" or "fix the lint error in App.tsx"
+- **It commits for you** — Claude runs `git commit` when tasks are done; review the diff before confirming
+- **Plans live in** `C:/_projects/gridio_flex_PA1/docs/plans/` — Claude saves implementation plans there before writing code
+- **CLAUDE.md** is the source of truth for commands and project context — keep it updated as the project grows
 
 ---
 
