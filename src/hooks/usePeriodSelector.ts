@@ -101,5 +101,14 @@ export function usePeriodSelector(defaultWindow: TimeWindow = '1D') {
     return isBefore(limit, next);
   }, [anchor, timeWindow]);
 
-  return { timeWindow, setTimeWindow, range, goNext, goPrev, isAtPresent };
+  return {
+    timeWindow,
+    setTimeWindow,
+    anchor,
+    jumpTo: setAnchor,
+    range,
+    goNext,
+    goPrev,
+    isAtPresent,
+  };
 }

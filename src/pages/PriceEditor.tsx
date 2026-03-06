@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { format, isToday, isBefore, startOfDay } from 'date-fns';
+import { format, isToday, isBefore, startOfDay, addDays } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
@@ -95,12 +95,12 @@ export function PriceEditor() {
         </p>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              className="w-44 justify-start text-sm font-normal"
+              className="w-36 justify-start text-sm font-normal"
             >
               {format(selectedDate, 'd MMM yyyy')}
             </Button>
@@ -119,14 +119,40 @@ export function PriceEditor() {
           </PopoverContent>
         </Popover>
 
-        <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-0.5">
+          {[
+            { label: 'Today', date: new Date() },
+            { label: 'Tmrw', date: addDays(new Date(), 1) },
+            { label: '+2d', date: addDays(new Date(), 2) },
+          ].map(({ label, date }) => {
+            const active =
+              startOfDay(selectedDate).getTime() === startOfDay(date).getTime();
+            return (
+              <button
+                key={label}
+                onClick={() => setSelectedDate(date)}
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                  active
+                    ? 'bg-primary/15 text-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <span className="text-xs text-muted-foreground">
           {isToday(selectedDate)
-            ? 'Today'
+            ? ''
             : format(selectedDate, 'EEEE, d MMMM yyyy')}
         </span>
+
         <Button
           variant="outline"
           size="sm"
+          className="ml-auto"
           onClick={() => setHistoryOpen(true)}
         >
           History

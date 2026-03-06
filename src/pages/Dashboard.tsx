@@ -15,8 +15,16 @@ import type { FleetStats } from '@/types';
 export function Dashboard() {
   const { settings } = useSettings();
   const [stats, setStats] = useState<FleetStats | null>(null);
-  const { timeWindow, setTimeWindow, range, goNext, goPrev, isAtPresent } =
-    usePeriodSelector('1D');
+  const {
+    timeWindow,
+    setTimeWindow,
+    anchor,
+    jumpTo,
+    range,
+    goNext,
+    goPrev,
+    isAtPresent,
+  } = usePeriodSelector('1D');
 
   useEffect(() => {
     api.fleet.stats().then(setStats).catch(console.error);
@@ -51,10 +59,12 @@ export function Dashboard() {
       <PeriodSelector
         timeWindow={timeWindow}
         label={range.label}
+        anchor={anchor}
         isAtPresent={isAtPresent}
         onWindowChange={setTimeWindow}
         onPrev={goPrev}
         onNext={goNext}
+        onJumpTo={jumpTo}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
