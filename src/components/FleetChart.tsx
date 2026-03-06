@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   ComposedChart,
   Bar,
@@ -131,7 +131,14 @@ interface FleetChartProps {
 }
 
 export function FleetChart({ range, timeWindow }: FleetChartProps) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const now = new Date();
+  void tick; // trigger re-render to refresh "now" position
 
   const data = useMemo(() => {
     const daysBack = Math.max(

@@ -32,6 +32,10 @@ export const TimeBlockSchema = z
 export const LoadResponseSchema = z
   .object({
     window: z.enum(['1D', '1W', '1M', '1Y']),
+    simulatedNow: z
+      .string()
+      .datetime()
+      .describe('Current simulated time (ISO 8601)'),
     blocks: z.array(TimeBlockSchema),
   })
   .openapi('LoadResponse');

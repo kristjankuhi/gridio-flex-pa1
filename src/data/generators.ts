@@ -224,6 +224,38 @@ export interface ActivationRecord {
   }>;
 }
 
+export interface MarketSplitStats {
+  daLoadKwh: number;
+  daSavingsEur: number;
+  idAdjustmentsKwh: number;
+  idSavingsEur: number;
+  mfrrUpKwh: number;
+  mfrrDownKwh: number;
+  mfrrRevenueEur: number;
+  mfrrDeliveryRatePct: number;
+}
+
+export function generateMarketSplitStats(range: {
+  start: Date;
+  end: Date;
+}): MarketSplitStats {
+  const seed = range.start.getTime() % 9999;
+  const daLoad = 8400 + seededRandom(seed) * 2000;
+  const daSavings = daLoad * 0.018 * (45 + seededRandom(seed + 1) * 20);
+  const idAdj = daLoad * 0.15 * (1 + (seededRandom(seed + 2) - 0.5) * 0.3);
+  const idSavings = idAdj * 0.022 * (50 + seededRandom(seed + 3) * 15);
+  return {
+    daLoadKwh: Math.round(daLoad),
+    daSavingsEur: Math.round(daSavings / 1000),
+    idAdjustmentsKwh: Math.round(idAdj),
+    idSavingsEur: Math.round(idSavings / 1000),
+    mfrrUpKwh: Math.round(daLoad * 0.04),
+    mfrrDownKwh: Math.round(daLoad * 0.08),
+    mfrrRevenueEur: Math.round(daLoad * 0.012),
+    mfrrDeliveryRatePct: Math.round(82 + seededRandom(seed + 4) * 12),
+  };
+}
+
 export function generateActivationHistory(
   daysBack: number
 ): ActivationRecord[] {
