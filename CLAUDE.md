@@ -52,10 +52,9 @@ Key concepts relevant to this codebase:
 - **mFRR**: Manual Frequency Restoration Reserve — one of the Flex 2.0 grid balancing products. TSO-dispatched, 12.5+ min response time.
 - **Flex 1.0**: Artificial price curve sent to EV chargers. The trader sets internal prices to embed signals from DA spot, intraday, and mFRR windows. EVs shift charging toward low-price blocks. No TSO activation. Active when `flex2Enabled = false` in Settings.
 - **Flex 2.0**: TSO-dispatched grid balancing. Trader submits capacity bids (MW, capacity price, energy price, availability window) per product. Settlement: capacity payment + energy payment − imbalance costs. Active when `flex2Enabled = true` in Settings.
-- **FlexProduct**: `'fcr' | 'afrr' | 'mfrr' | 'id-balancing'` — universal product type for Flex 2.0 bids.
-- **FCR**: Frequency Containment Reserve — symmetric, continuous, seconds-scale response.
-- **aFRR**: Automatic Frequency Restoration Reserve — responds to AGC signal, minutes-scale.
-- **ID balancing**: Intraday balancing product — opportunistic, shorter windows.
+- **FlexProduct**: `'fcr' | 'afrr' | 'mfrr' | 'id-balancing'` — type still exists in code; **only mFRR R3 and ID Balancing are active in the prototype**. FCR (<30s) and aFRR (<5 min) are excluded — fleet p90 response 8.6–9.4 min is incompatible.
+- **mFRR R3**: Manual Frequency Restoration Reserve (R3 Standard, ELIA Belgium) — TSO-dispatched, 12.5+ min response time. The active product.
+- **ID Balancing** (labelled "ID Bal." in UI): Intraday balancing product — opportunistic, shorter windows. The second active product.
 - **Capacity payment**: Fee for being available (€/MW/h × reserved MW × hours). Separate from energy payment.
 - **Energy payment**: Fee for actual activation (€/MWh × activated MWh).
 - **Imbalance cost**: Penalty for under-delivery (imbalance price × undelivered MWh).
@@ -180,8 +179,8 @@ app_workspace/
 
 ### Flex 2.0 bid management
 
-- `generateBidTimeline(date)` generates default bids for mFRR + ID balancing (always) + FCR + aFRR (conditional on date seed).
-- BidTimeline component: 24h × 4-product drag-to-draw grid. Click+drag marks availability slots. Click filled slot → popover to edit MW and bid prices.
+- `generateBidTimeline(date)` generates default bids for mFRR R3 + ID Balancing only (FCR/aFRR removed from generator).
+- BidTimeline component: 24h × 2-product drag-to-draw grid. Click+drag marks availability slots. Click filled slot → popover to edit MW and bid prices.
 - Bids stored in server-side `bidStore.ts` (in-memory, same pattern as priceCurveStore).
 
 ### FleetChart kW/kWh fix
@@ -196,10 +195,21 @@ app_workspace/
 
 ### DA load shift visualisation (`src/data/generators.ts` + `src/components/LoadShiftChart.tsx`)
 
-- `generateLoadProfile(daysBack, applyPriceShift)` — internal helper. When `applyPriceShift=true`, flexible kWh is multiplied by a price-shift factor `(refPrice / effectivePrice)^0.45` clamped to [0.35, 1.9]. `refPrice` = midday DA price (hour 12) for the current month/day type.
+- `generateLoadProfile(daysBack, applyPriceShift)` — internal helper. When `applyPriceShift=true`, flexible kWh is multiplied by a price-shift factor `(refPrice / effectivePrice)^0.45` clamped to [0.35, 1.9]. `refPrice` = **daily-average DA price** for the current month/day type (ensures bars go both up AND down — hours above avg get reduced load, hours below avg get increased load).
 - `generateHistoricLoad(daysBack)` — calls `generateLoadProfile(daysBack, true)` (Gridio-managed, price-shifted).
 - `generateBaselineLoad(daysBack)` — calls `generateLoadProfile(daysBack, false)` (uncontrolled, plug-in-proportional).
 - `generateLoadShiftBlocks(daysBack)` — pairs baseline + managed, returns `LoadShiftBlock[]` with `deltaKwh`, `daSpotEurMwh`, `savingsEur`.
 - **FleetChart**: `showBaseline` prop renders a grey dashed "Uncontrolled baseline" line in 1D Flex 1.0 view only.
 - **LoadShiftChart**: bars above zero = load added, below zero = load removed. Emerald = economically correct, amber = suboptimal. DA price line on right axis.
 - **Settlement Flex 1.0 KPIs**: Baseline Cost / Actual Cost / DA Savings / Savings Rate — derived from `generateLoadShiftBlocks(365)` filtered to selected range.
+- **Settlement default period**: 1M (changed from 1W).
+- **Activation Log** (ActivationTable): shown only in Flex 2.0 mode — Flex 1.0 has no TSO activations.
+- **mFRR baseline kWh**: derived from `reservedMw × 1000 × 0.25h` (±10% noise) — consistent with MW capacity bid.
+
+### UI conventions
+
+- **TopNav**: Flex mode pill ("Flex 1.0" / "Flex 2.0") visible at all times; toggles via SettingsPanel gear icon.
+- **Dashboard title**: "Fleet Overview" (renamed from "Fleet Portfolio").
+- **Headroom stat cards**: displayed in MW (divided by 1000 from kW data type).
+- **ActivationTable**: Req./Del. columns show MW (divided from kW). Headers "Req. MW" / "Del. MW".
+- **Price Editor current column**: labelled "DA Signal (€/MWh)" to clarify it is the DA-derived internal price signal.
