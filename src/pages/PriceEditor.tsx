@@ -141,6 +141,24 @@ export function PriceEditor() {
     setSimulationResult(null);
   }
 
+  // ELIA mFRR R3 D-1 gate: closes at 15:00 CET (approximated as local 15:00).
+  // After gate close, D+1 nominations are locked — only D+2 bids can be edited.
+  const now = new Date();
+  const gateClose = new Date(now);
+  gateClose.setHours(15, 0, 0, 0);
+  const gateIsOpen = now < gateClose;
+  const gateDiffMs = gateClose.getTime() - now.getTime();
+  const gateInfo = gateIsOpen
+    ? {
+        label: `Gate open — D-1 deadline in ${Math.floor(gateDiffMs / 3600000)}h ${Math.floor((gateDiffMs % 3600000) / 60000)}m (15:00 CET)`,
+        color: 'text-emerald-400',
+      }
+    : {
+        label:
+          'Gate closed — D-1 bids locked · editing D+1 (next gate 15:00 tomorrow)',
+        color: 'text-amber-400',
+      };
+
   return (
     <div className="space-y-8">
       <div>
@@ -152,6 +170,9 @@ export function PriceEditor() {
             ? 'Submit availability windows and bid prices for grid balancing products'
             : 'Adjust the price curve to shift EV charging load'}
         </p>
+        {settings.flex2Enabled && (
+          <p className={`text-xs mt-1 ${gateInfo.color}`}>{gateInfo.label}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

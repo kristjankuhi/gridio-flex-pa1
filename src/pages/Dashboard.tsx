@@ -12,6 +12,8 @@ import {
   generateHistoricLoad,
   generateFleetStats,
   generateMarketSplitStats,
+  generateLoadShiftBlocks,
+  generatePriceReference,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
 import type { FleetStats, SoCBlock, BidBlock } from '@/types';
@@ -69,6 +71,42 @@ export function Dashboard() {
 
   const marketStats = useMemo(() => generateMarketSplitStats(range), [range]);
 
+  const perEvStats = useMemo(() => {
+    if (settings.flex2Enabled) return null;
+    const allBlocks = generateLoadShiftBlocks(365);
+    const blocks = allBlocks.filter(
+      (b) => b.timestamp >= range.start && b.timestamp <= range.end
+    );
+    const baselineCost = blocks.reduce(
+      (s, b) => s + (b.baselineKwh * Math.max(0, b.daSpotEurMwh)) / 1000,
+      0
+    );
+    const actualCost = blocks.reduce(
+      (s, b) => s + (b.actualKwh * Math.max(0, b.daSpotEurMwh)) / 1000,
+      0
+    );
+    const savings = baselineCost - actualCost;
+    const activeEvs = 847;
+    return {
+      savingsPerEv: savings / activeEvs,
+      savingsRatePct:
+        baselineCost > 0 ? Math.round((savings / baselineCost) * 1000) / 10 : 0,
+      activeEvs,
+    };
+  }, [settings.flex2Enabled, range]);
+
+  // Current DA spot price for the present 15-min block (computed once at render)
+  const _now = new Date();
+  const _rounded = new Date(_now);
+  _rounded.setMinutes(Math.floor(_now.getMinutes() / 15) * 15, 0, 0);
+  const _priceBlocks = generatePriceReference(_now);
+  const _currentBlock = _priceBlocks.find(
+    (b) => new Date(b.timestamp).getTime() === _rounded.getTime()
+  );
+  const currentDaPrice = _currentBlock
+    ? Math.round(_currentBlock.daSpotEurMwh * 10) / 10
+    : null;
+
   const totalReservedMw = bidBlocks
     .filter((b) => b.isAvailable)
     .reduce((max, b) => Math.max(max, b.reservedMw), 0);
@@ -94,6 +132,32 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold mb-1">Fleet Overview</h1>
+          <p className="text-sm text-muted-foreground">
+            Real-time overview of EV fleet capacity and flexibility
+          </p>
+        </div>
+        {currentDaPrice != null && (
+          <div className="text-right shrink-0">
+            <p className="text-xs text-muted-foreground">DA Spot (now)</p>
+            <p
+              className={`text-lg font-semibold tabular-nums ${
+                currentDaPrice < 0
+                  ? 'text-emerald-400'
+                  : currentDaPrice > 100
+                    ? 'text-red-400'
+                    : 'text-amber-400'
+              }`}
+            >
+              €{currentDaPrice.toFixed(1)}{' '}
+              <span className="text-xs font-normal text-muted-foreground">
+                /MWh
+              </span>
+            </p>
+          </div>
+        )}
       <div>
         <h1 className="text-xl font-semibold mb-1">Fleet Overview</h1>
         <p className="text-sm text-muted-foreground">
@@ -198,6 +262,32 @@ export function Dashboard() {
               unit=""
             />
           </div>
+          {perEvStats && (
+            <div className="mt-3 space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                Per Vehicle
+              </p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                  label="Saving per EV"
+                  value={`€${Math.round(perEvStats.savingsPerEv).toLocaleString()}`}
+                  unit=""
+                  trend="vs uncontrolled baseline"
+                />
+                <StatCard
+                  label="Cost Reduction"
+                  value={perEvStats.savingsRatePct.toString()}
+                  unit="%"
+                  trend="DA charging cost"
+                />
+                <StatCard
+                  label="Opted-in Fleet"
+                  value={perEvStats.activeEvs.toLocaleString()}
+                  unit="EVs"
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

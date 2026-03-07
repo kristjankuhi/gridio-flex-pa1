@@ -25,8 +25,8 @@ export function SoCChart({ blocks }: SoCChartProps) {
         label: format(b.timestamp, 'HH:mm'),
         avgSoCPct: Math.round(b.avgSoCPct * 10) / 10,
         pluggedInCount: b.pluggedInCount,
-        upHeadroomKwh: b.upHeadroomKwh,
-        downHeadroomKwh: b.downHeadroomKwh,
+        upHeadroomMwh: Math.round((b.upHeadroomKwh / 1000) * 100) / 100,
+        downHeadroomMwh: Math.round((b.downHeadroomKwh / 1000) * 100) / 100,
       })),
     [blocks]
   );
@@ -75,8 +75,8 @@ export function SoCChart({ blocks }: SoCChartProps) {
               tick={{ fontSize: 11, fill: '#64748b' }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}MWh`}
-              width={56}
+              tickFormatter={(v: number) => `${v.toFixed(1)} MWh`}
+              width={60}
             />
             <Tooltip
               contentStyle={{
@@ -117,8 +117,8 @@ export function SoCChart({ blocks }: SoCChartProps) {
             <Area
               yAxisId="kwh"
               type="monotone"
-              dataKey="upHeadroomKwh"
-              name="Up headroom (kWh)"
+              dataKey="upHeadroomMwh"
+              name="Up headroom (MWh)"
               fill="#00c9a7"
               fillOpacity={0.15}
               stroke="#00c9a7"
@@ -128,8 +128,8 @@ export function SoCChart({ blocks }: SoCChartProps) {
             <Area
               yAxisId="kwh"
               type="monotone"
-              dataKey="downHeadroomKwh"
-              name="Down headroom (kWh)"
+              dataKey="downHeadroomMwh"
+              name="Down headroom (MWh)"
               fill="#f59e0b"
               fillOpacity={0.15}
               stroke="#f59e0b"

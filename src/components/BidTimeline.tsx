@@ -332,6 +332,16 @@ export function BidTimeline({ blocks, onSave }: BidTimelineProps) {
         </div>
       )}
 
+      {/* Minimum bid size warning */}
+      {productSummary.some(
+        (p) => p && p.reservedMw > 0 && p.reservedMw < 1
+      ) && (
+        <p className="text-xs text-amber-400 bg-amber-950/30 border border-amber-800/30 rounded px-3 py-2">
+          Warning: minimum bid size for mFRR R3 and ID Balancing is 1 MW. Bids
+          below 1 MW may be rejected by ELIA.
+        </p>
+      )}
+
       {/* Save button */}
       <div className="flex justify-end pt-2 border-t border-border">
         <button
