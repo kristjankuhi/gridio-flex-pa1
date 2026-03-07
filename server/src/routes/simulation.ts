@@ -5,7 +5,8 @@ import { runSimulation } from '@/data/simulation';
 import {
   SimulationRequestSchema,
   SimulationResultSchema,
-  ErrorSchema,
+  ProblemDetailsSchema,
+  createProblem,
 } from '../schemas';
 import { format } from 'date-fns';
 
@@ -32,8 +33,16 @@ simulationRoutes.openapi(
           'Simulation result with baseline and projected load series',
       },
       400: {
-        content: { 'application/json': { schema: ErrorSchema } },
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
         description: 'No load data available for the requested date',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
@@ -50,7 +59,14 @@ simulationRoutes.openapi(
     const baselineBlocks = historic.length > 0 ? historic : forecast;
 
     if (baselineBlocks.length === 0) {
-      return c.json({ error: `No load data available for date ${date}` }, 400);
+      return c.json(
+        createProblem(
+          400,
+          'Bad Request',
+          `No load data available for date ${date}`
+        ),
+        400
+      );
     }
 
     const priceCurve = newPriceBlocks.map((b) => ({
