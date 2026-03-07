@@ -93,7 +93,9 @@ export function UserValueChart({ blocks, timeWindow }: UserValueChartProps) {
               color: '#e2e8f0',
             }}
             itemStyle={{ color: '#e2e8f0' }}
-            formatter={(v: number) => `€${v.toFixed(2)}`}
+            formatter={(v: number | undefined) =>
+              v !== undefined ? `€${v.toFixed(2)}` : ''
+            }
           />
           <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
           <Bar
