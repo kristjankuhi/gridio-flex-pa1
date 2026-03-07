@@ -4,8 +4,9 @@ import {
   generateHistoricLoad,
   generateForecastLoad,
   generateBasePriceCurve,
+  generateBaselineLoad,
+  generateLoadShiftBlocks,
 } from './generators';
-
 describe('generateFleetStats', () => {
   it('returns plausible fleet stats', () => {
     const stats = generateFleetStats();
@@ -57,6 +58,66 @@ describe('generateBasePriceCurve', () => {
     blocks.forEach((b) => {
       expect(b.priceEurMwh).toBeGreaterThanOrEqual(0);
       expect(b.priceEurMwh).toBeLessThanOrEqual(500);
+    });
+  });
+});
+
+describe('generateBaselineLoad', () => {
+  it('returns same number of blocks as generateHistoricLoad for same daysBack', () => {
+    const baseline = generateBaselineLoad(1);
+    const managed = generateHistoricLoad(1);
+    expect(baseline.length).toBe(managed.length);
+  });
+
+  it('all blocks have non-negative volumes', () => {
+    const blocks = generateBaselineLoad(1);
+    blocks.forEach((b) => {
+      expect(b.flexibleKwh).toBeGreaterThanOrEqual(0);
+      expect(b.nonFlexibleKwh).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  it('baseline has same timestamps as managed', () => {
+    const baseline = generateBaselineLoad(1);
+    const managed = generateHistoricLoad(1);
+    baseline.forEach((b, i) => {
+      expect(b.timestamp.getTime()).toBe(managed[i].timestamp.getTime());
+    });
+  });
+});
+
+describe('generateLoadShiftBlocks', () => {
+  it('returns same number of blocks as generateHistoricLoad', () => {
+    const shift = generateLoadShiftBlocks(1);
+    const managed = generateHistoricLoad(1);
+    expect(shift.length).toBe(managed.length);
+  });
+
+  it('deltaKwh = actualKwh - baselineKwh for each block', () => {
+    const shift = generateLoadShiftBlocks(1);
+    shift.forEach((b) => {
+      expect(b.deltaKwh).toBe(b.actualKwh - b.baselineKwh);
+    });
+  });
+
+  it('managed load differs from baseline (price shift has an effect)', () => {
+    const baseline = generateBaselineLoad(1);
+    const managed = generateHistoricLoad(1);
+    // At least some blocks should differ in flexibleKwh due to price shifting
+    const diffCount = baseline.filter(
+      (b, i) => Math.abs(b.flexibleKwh - managed[i].flexibleKwh) > 0.01
+    ).length;
+    expect(diffCount).toBeGreaterThan(0);
+  });
+
+  it('savingsEur is consistent with deltaKwh sign', () => {
+    const shift = generateLoadShiftBlocks(1);
+    shift.forEach((b) => {
+      if (b.daSpotEurMwh > 0) {
+        // savingsEur and deltaKwh should have opposite signs (removing load = positive savings)
+        if (b.deltaKwh < 0) expect(b.savingsEur).toBeGreaterThanOrEqual(0);
+        if (b.deltaKwh > 0) expect(b.savingsEur).toBeLessThanOrEqual(0);
+      }
     });
   });
 });

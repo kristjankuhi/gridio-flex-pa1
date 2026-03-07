@@ -9,6 +9,7 @@ import type {
   ActivationRecord,
   ActivationBlock,
   SoCBlock,
+  LoadShiftBlock,
 } from '../types';
 
 // Seeded pseudo-random for reproducibility in demos
@@ -401,10 +402,16 @@ export function generateSoCCurve(date: Date): SoCBlock[] {
   return blocks;
 }
 
-export function generateHistoricLoad(daysBack: number): TimeBlock[] {
+// Internal helper: generates historic load profile.
+// applyPriceShift = true  → Gridio-managed load (flexible kWh shifted toward cheap hours)
+// applyPriceShift = false → uncontrolled baseline (plug-in-proportional, no price signal)
+function generateLoadProfile(
+  daysBack: number,
+  applyPriceShift: boolean
+): TimeBlock[] {
   const blocks: TimeBlock[] = [];
   const now = new Date();
-  const end = now; // include today's blocks up to the current time
+  const end = now;
   const start = startOfDay(subDays(now, daysBack));
 
   let current = start;
@@ -420,6 +427,8 @@ export function generateHistoricLoad(daysBack: number): TimeBlock[] {
     const noise = 1 + (seededRandom(seed++) - 0.5) * 0.25;
     const total = baseLoad * noise;
     const flexRatio = 0.62 + seededRandom(seed++) * 0.12;
+    const baseFlexKwh = total * flexRatio;
+    const nonFlexKwh = total * (1 - flexRatio);
 
     const dayIndex = Math.floor(current.getTime() / 86400000);
     const negDay = isNegativePriceDay(dayIndex, month);
@@ -427,18 +436,34 @@ export function generateHistoricLoad(daysBack: number): TimeBlock[] {
 
     let priceEurMwh: number;
     if (negPrice !== null) {
-      const noise = 1 + (seededRandom(seed++) - 0.5) * 0.25;
-      priceEurMwh = Math.max(-100, negPrice * noise);
+      const priceNoise = 1 + (seededRandom(seed++) - 0.5) * 0.25;
+      priceEurMwh = Math.max(-100, negPrice * priceNoise);
     } else {
       const basePrice = basePriceForHour(hour, month, isWeekend);
       const priceNoise = 1 + (seededRandom(seed++) - 0.5) * 0.15;
       priceEurMwh = Math.max(-100, basePrice * priceNoise);
     }
 
+    let flexibleKwh: number;
+    if (applyPriceShift) {
+      // Gridio shifts flexible charging toward cheap hours.
+      // Reference price: midday average (solar minimum in summer, grid reference in winter).
+      // shiftFactor > 1 on cheap hours (add load), < 1 on expensive hours (reduce load).
+      const refPrice = basePriceForHour(12, month, isWeekend);
+      const effectivePrice = Math.max(5, priceEurMwh); // avoid divide-by-zero on negatives
+      const shiftFactor = Math.max(
+        0.35,
+        Math.min(1.9, (refPrice / effectivePrice) ** 0.45)
+      );
+      flexibleKwh = Math.max(0, baseFlexKwh * shiftFactor);
+    } else {
+      flexibleKwh = baseFlexKwh;
+    }
+
     blocks.push({
       timestamp: new Date(current),
-      flexibleKwh: Math.max(0, total * flexRatio),
-      nonFlexibleKwh: Math.max(0, total * (1 - flexRatio)),
+      flexibleKwh,
+      nonFlexibleKwh: Math.max(0, nonFlexKwh),
       priceEurMwh,
     });
 
@@ -446,6 +471,38 @@ export function generateHistoricLoad(daysBack: number): TimeBlock[] {
   }
 
   return blocks;
+}
+
+export function generateHistoricLoad(daysBack: number): TimeBlock[] {
+  return generateLoadProfile(daysBack, true);
+}
+
+export function generateBaselineLoad(daysBack: number): TimeBlock[] {
+  return generateLoadProfile(daysBack, false);
+}
+
+export function generateLoadShiftBlocks(daysBack: number): LoadShiftBlock[] {
+  const baseline = generateLoadProfile(daysBack, false);
+  const managed = generateLoadProfile(daysBack, true);
+
+  return baseline.map((b, i) => {
+    const m = managed[i];
+    const baselineTotal = b.flexibleKwh + b.nonFlexibleKwh;
+    const actualTotal = m.flexibleKwh + m.nonFlexibleKwh;
+    const baselineKwh = Math.round(baselineTotal);
+    const actualKwh = Math.round(actualTotal);
+    const deltaKwh = actualKwh - baselineKwh;
+    const savingsEur =
+      ((baselineKwh - actualKwh) * Math.max(0, b.priceEurMwh)) / 1000;
+    return {
+      timestamp: b.timestamp,
+      baselineKwh,
+      actualKwh,
+      deltaKwh,
+      daSpotEurMwh: Math.round(b.priceEurMwh * 10) / 10,
+      savingsEur: Math.round(savingsEur * 100) / 100,
+    };
+  });
 }
 
 export function generateForecastLoad(daysAhead: number): TimeBlock[] {
