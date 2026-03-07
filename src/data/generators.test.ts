@@ -100,10 +100,24 @@ describe('generateLoadShiftBlocks', () => {
     });
   });
 
-  it('all blocks have timestamps', () => {
+  it('managed load differs from baseline (price shift has an effect)', () => {
+    const baseline = generateBaselineLoad(1);
+    const managed = generateHistoricLoad(1);
+    // At least some blocks should differ in flexibleKwh due to price shifting
+    const diffCount = baseline.filter(
+      (b, i) => Math.abs(b.flexibleKwh - managed[i].flexibleKwh) > 0.01
+    ).length;
+    expect(diffCount).toBeGreaterThan(0);
+  });
+
+  it('savingsEur is consistent with deltaKwh sign', () => {
     const shift = generateLoadShiftBlocks(1);
     shift.forEach((b) => {
-      expect(b.timestamp).toBeInstanceOf(Date);
+      if (b.daSpotEurMwh > 0) {
+        // savingsEur and deltaKwh should have opposite signs (removing load = positive savings)
+        if (b.deltaKwh < 0) expect(b.savingsEur).toBeGreaterThanOrEqual(0);
+        if (b.deltaKwh > 0) expect(b.savingsEur).toBeLessThanOrEqual(0);
+      }
     });
   });
 });

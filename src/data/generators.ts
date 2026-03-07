@@ -493,7 +493,7 @@ export function generateLoadShiftBlocks(daysBack: number): LoadShiftBlock[] {
     const actualKwh = Math.round(actualTotal);
     const deltaKwh = actualKwh - baselineKwh;
     const savingsEur =
-      ((baselineTotal - actualTotal) * Math.max(0, b.priceEurMwh)) / 1000;
+      ((baselineKwh - actualKwh) * Math.max(0, b.priceEurMwh)) / 1000;
     return {
       timestamp: b.timestamp,
       baselineKwh,
