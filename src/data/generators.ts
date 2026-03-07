@@ -10,6 +10,7 @@ import type {
   ActivationBlock,
   SoCBlock,
   LoadShiftBlock,
+  UserEconomicsBlock,
 } from '../types';
 
 // Seeded pseudo-random for reproducibility in demos
@@ -762,6 +763,33 @@ export function generateBidTimeline(date: Date): BidBlock[] {
     }
   }
   return blocks;
+}
+
+const USER_SHARE = 0.4; // 40% of DA savings credited to EV users
+const MFRR_BONUS_EUR_PER_MWH = 2.5; // bonus per MWh shifted in an mFRR activation
+
+export function generateUserEconomics(daysBack: number): UserEconomicsBlock[] {
+  const shiftBlocks = generateLoadShiftBlocks(daysBack);
+
+  return shiftBlocks.map((b) => {
+    const grossSavings = Math.max(0, b.savingsEur);
+    const userCreditEur = grossSavings * USER_SHARE;
+    const gridioRetainedEur = grossSavings * (1 - USER_SHARE);
+
+    // mFRR bonus: applied to large shift blocks (>50 kWh delta) with ~15% probability
+    const seed = b.timestamp.getTime() % 9999;
+    const mfrrBonusEur =
+      Math.abs(b.deltaKwh) > 50 && seededRandom(seed) > 0.85
+        ? (MFRR_BONUS_EUR_PER_MWH * Math.abs(b.deltaKwh)) / 1000
+        : 0;
+
+    return {
+      timestamp: b.timestamp,
+      userCreditEur: Math.round((userCreditEur + mfrrBonusEur) * 100) / 100,
+      gridioRetainedEur: Math.round(gridioRetainedEur * 100) / 100,
+      mfrrBonusEur: Math.round(mfrrBonusEur * 100) / 100,
+    };
+  });
 }
 
 export function formatBlockTime(date: Date): string {
