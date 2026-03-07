@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import { StatCard } from '@/components/StatCard';
 import { FleetChart } from '@/components/FleetChart';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { FlexibilityImpact } from '@/components/FlexibilityImpact';
+import { SoCChart } from '@/components/SoCChart';
 import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { api } from '@/api/client';
 import {
@@ -11,10 +13,12 @@ import {
   generateMarketSplitStats,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
+import type { FleetStats, SoCBlock } from '@/types';
 
 export function Dashboard() {
   const { settings } = useSettings();
   const [stats, setStats] = useState<FleetStats>(() => generateFleetStats());
+  const [socBlocks, setSocBlocks] = useState<SoCBlock[]>([]);
   const {
     timeWindow,
     setTimeWindow,
@@ -28,6 +32,21 @@ export function Dashboard() {
 
   useEffect(() => {
     api.fleet.stats().then(setStats).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    api.fleet
+      .soc(today)
+      .then((blocks) =>
+        setSocBlocks(
+          blocks.map((b) => ({
+            ...b,
+            timestamp: new Date(b.timestamp as unknown as string),
+          }))
+        )
+      )
+      .catch(console.error);
   }, []);
 
   const marketStats = useMemo(() => generateMarketSplitStats(range), [range]);
@@ -78,16 +97,6 @@ export function Dashboard() {
           unit="kWh"
         />
         <StatCard
-          label="Opted-in for Flexibility"
-          value={
-            timeWindow === '1D'
-              ? (stats?.availableFlexibilityKw ?? 0).toLocaleString()
-              : (periodStats?.optedInFlexibilityKwh ?? 0).toLocaleString()
-          }
-          unit={timeWindow === '1D' ? 'kW' : 'kWh'}
-          trend={timeWindow === '1D' ? '+8% vs last week' : undefined}
-        />
-        <StatCard
           label="Active EVs"
           value={(
             periodStats?.activeEvCount ??
@@ -97,13 +106,16 @@ export function Dashboard() {
           unit="vehicles"
         />
         <StatCard
-          label="Avg. State of Charge"
-          value={(
-            periodStats?.avgStateOfChargePct ??
-            stats?.avgStateOfChargePct ??
-            0
-          ).toString()}
-          unit="%"
+          label="Up Headroom"
+          value={(stats?.upHeadroomKw ?? 0).toLocaleString()}
+          unit="kW"
+          trend="Available for up-regulation"
+        />
+        <StatCard
+          label="Down Headroom"
+          value={(stats?.downHeadroomKw ?? 0).toLocaleString()}
+          unit="kW"
+          trend="Available for down-regulation"
         />
       </div>
 
@@ -162,6 +174,12 @@ export function Dashboard() {
               unit="%"
             />
           </div>
+        </div>
+      )}
+
+      {socBlocks.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <SoCChart blocks={socBlocks} />
         </div>
       )}
 
