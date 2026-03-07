@@ -133,14 +133,14 @@ export function Dashboard() {
         />
         <StatCard
           label="Up Headroom"
-          value={(stats?.upHeadroomKw ?? 0).toLocaleString()}
-          unit="kW"
+          value={((stats?.upHeadroomKw ?? 0) / 1000).toFixed(2)}
+          unit="MW"
           trend="Available for up-regulation"
         />
         <StatCard
           label="Down Headroom"
-          value={(stats?.downHeadroomKw ?? 0).toLocaleString()}
-          unit="kW"
+          value={((stats?.downHeadroomKw ?? 0) / 1000).toFixed(2)}
+          unit="MW"
           trend="Available for down-regulation"
         />
       </div>

@@ -46,10 +46,10 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                 Product
               </th>
               <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
-                Requested kW
+                Req. MW
               </th>
               <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
-                Delivered kW
+                Del. MW
               </th>
               <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
                 Duration
@@ -111,10 +111,14 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                     </Badge>
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">
-                    {act.requestedKw?.toLocaleString() ?? '—'}
+                    {act.requestedKw != null
+                      ? (act.requestedKw / 1000).toFixed(2)
+                      : '—'}
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">
-                    {act.deliveredKw?.toLocaleString() ?? '—'}
+                    {act.deliveredKw != null
+                      ? (act.deliveredKw / 1000).toFixed(2)
+                      : '—'}
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">
                     {act.durationMin} min
