@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { useSettings } from '@/store/settingsStore';
 
 export function TopNav() {
+  const { flex2Enabled } = useSettings();
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="mx-auto max-w-7xl flex items-center justify-between px-6 h-14">
@@ -33,7 +35,7 @@ export function TopNav() {
                 }`
               }
             >
-              Price Editor
+              {flex2Enabled ? 'Bid Manager' : 'Price Editor'}
             </NavLink>
             <NavLink
               to="/settlement"
