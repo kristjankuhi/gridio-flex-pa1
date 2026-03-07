@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
+import { ZodError } from 'zod';
 import { bidsRoutes } from './routes/bids';
 import { fleetRoutes } from './routes/fleet';
 import { marketPricesRoutes } from './routes/marketPrices';
@@ -11,6 +12,7 @@ import { socRoutes } from './routes/soc';
 import { initPriceCache, scheduleDailyRefresh } from './services/priceService';
 import { startSimulationClock } from './services/simulationClock';
 import { authMiddleware } from './middleware/auth';
+import { createProblem } from './schemas';
 
 const app = new OpenAPIHono();
 
@@ -47,6 +49,30 @@ app.doc('/api/doc', {
 });
 
 app.get('/api/docs', swaggerUI({ url: '/api/doc' }));
+
+app.onError((err, c) => {
+  if (err instanceof ZodError) {
+    const errors: Record<string, string[]> = {};
+    for (const issue of err.issues) {
+      const path = issue.path.join('.') || '_root';
+      errors[path] = [...(errors[path] ?? []), issue.message];
+    }
+    return c.json(
+      createProblem(
+        422,
+        'Validation Error',
+        'One or more fields failed validation',
+        { errors }
+      ),
+      422
+    );
+  }
+  console.error(err);
+  return c.json(
+    createProblem(500, 'Internal Server Error', 'An unexpected error occurred'),
+    500
+  );
+});
 
 app.get('/health', (c) =>
   c.json({ status: 'ok', version: 'v1', data: 'simulated' })

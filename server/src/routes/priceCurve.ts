@@ -6,7 +6,8 @@ import {
   PriceBlockSchema,
   PriceCurveVersionSchema,
   SaveVersionBodySchema,
-  ErrorSchema,
+  ProblemDetailsSchema,
+  createProblem,
 } from '../schemas';
 import {
   getVersions,
@@ -35,6 +36,14 @@ priceCurveRoutes.openapi(
       200: {
         content: { 'application/json': { schema: z.array(PriceBlockSchema) } },
         description: 'Price curve blocks',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
@@ -78,6 +87,14 @@ priceCurveRoutes.openapi(
         description:
           'Versions, newest first. Active version has isActive: true.',
       },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
+      },
     },
   }),
   (c) => {
@@ -113,6 +130,18 @@ priceCurveRoutes.openapi(
       201: {
         content: { 'application/json': { schema: PriceCurveVersionSchema } },
         description: 'Newly created version',
+      },
+      400: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Invalid request body',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
@@ -155,8 +184,16 @@ priceCurveRoutes.openapi(
         content: { 'application/json': { schema: PriceCurveVersionSchema } },
         description: 'The restored (now active) version',
       },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
+      },
       404: {
-        content: { 'application/json': { schema: ErrorSchema } },
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
         description: 'Version not found',
       },
     },
@@ -164,7 +201,11 @@ priceCurveRoutes.openapi(
   (c) => {
     const { id } = c.req.valid('param');
     const version = restoreVersion(id);
-    if (!version) return c.json({ error: `Version ${id} not found` }, 404);
+    if (!version)
+      return c.json(
+        createProblem(404, 'Not Found', `Version ${id} not found`),
+        404
+      );
     return c.json(
       {
         ...version,

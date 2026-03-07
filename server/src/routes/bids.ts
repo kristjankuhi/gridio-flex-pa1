@@ -3,7 +3,11 @@ import { parseISO } from 'date-fns';
 import { requireScope } from '../middleware/auth';
 import { generateBidTimeline } from '@/data/generators';
 import { getBids, saveBids } from '../store/bidStore';
-import { BidBlockSchema, SaveBidsBodySchema } from '../schemas';
+import {
+  BidBlockSchema,
+  SaveBidsBodySchema,
+  ProblemDetailsSchema,
+} from '../schemas';
 import type { BidBlock } from '@/types';
 
 export const bidsRoutes = new OpenAPIHono();
@@ -25,6 +29,14 @@ bidsRoutes.openapi(
       200: {
         content: { 'application/json': { schema: z.array(BidBlockSchema) } },
         description: 'Bid blocks',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
@@ -67,6 +79,18 @@ bidsRoutes.openapi(
           },
         },
         description: 'Saved bid version metadata',
+      },
+      400: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Invalid request body',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),

@@ -6,7 +6,11 @@ import {
 } from '@/data/generators';
 import { getSimulatedNow } from '../services/simulationClock';
 import { applyRealPrices } from '../services/priceService';
-import { FleetStatsSchema, LoadResponseSchema } from '../schemas';
+import {
+  FleetStatsSchema,
+  LoadResponseSchema,
+  ProblemDetailsSchema,
+} from '../schemas';
 
 export const fleetRoutes = new OpenAPIHono();
 
@@ -22,6 +26,14 @@ fleetRoutes.openapi(
       200: {
         content: { 'application/json': { schema: FleetStatsSchema } },
         description: 'Fleet statistics',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
@@ -66,6 +78,14 @@ fleetRoutes.openapi(
       200: {
         content: { 'application/json': { schema: LoadResponseSchema } },
         description: 'Load time series with price curve',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
