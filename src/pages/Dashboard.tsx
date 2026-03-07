@@ -14,6 +14,9 @@ import {
   generateMarketSplitStats,
   generateLoadShiftBlocks,
   generatePriceReference,
+  generateUserEconomics,
+  generateDepartureCompliance,
+  generateOptInStats,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
 import type { FleetStats, SoCBlock, BidBlock } from '@/types';
@@ -105,6 +108,31 @@ export function Dashboard() {
     };
   }, [flex2Enabled, range, marketArea]);
 
+  const userValueStats = useMemo(() => {
+    const economics = generateUserEconomics(30);
+    const totalCredit = economics.reduce((s, b) => s + b.userCreditEur, 0);
+    const avgPerEv = totalCredit / 847;
+
+    const compliance = generateDepartureCompliance(30);
+    const avgCommuter =
+      compliance.reduce((s, b) => s + b.commuterCompliancePct, 0) /
+      Math.max(compliance.length, 1);
+    const avgFlexible =
+      compliance.reduce((s, b) => s + b.flexibleCompliancePct, 0) /
+      Math.max(compliance.length, 1);
+    const overallCompliance = 0.7 * avgCommuter + 0.3 * avgFlexible;
+
+    const optIn = generateOptInStats(12);
+    const latestOptIn = optIn[optIn.length - 1]?.optInRatePct ?? 84;
+
+    return {
+      avgMonthlyPerEv: Math.round(avgPerEv),
+      totalCreditEur: Math.round(totalCredit),
+      optInRatePct: latestOptIn,
+      compliancePct: Math.round(overallCompliance * 10) / 10,
+    };
+  }, []);
+
   // Current DA spot price for the present 15-min block (computed once at render)
   const _now = new Date();
   const _rounded = new Date(_now);
@@ -131,12 +159,10 @@ export function Dashboard() {
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
     const totalFlex = blocks.reduce((s, b) => s + b.flexibleKwh, 0);
-    const avgSoC = 62;
     return {
-      totalCapacityKwh: 12_450,
+      totalCapacityKwh: 46_585, // 847 vehicles × 55 kWh avg battery
       optedInFlexibilityKwh: Math.round(totalFlex),
       activeEvCount: 847,
-      avgStateOfChargePct: avgSoC,
     };
   }, [timeWindow, range, marketArea]);
 
@@ -295,6 +321,39 @@ export function Dashboard() {
           )}
         </div>
       )}
+
+      {/* EV User Value — always visible */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">
+          EV User Value
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Avg. Monthly Saving"
+            value={`€${userValueStats.avgMonthlyPerEv}`}
+            unit="/ vehicle"
+            trend="bill credit (est.)"
+          />
+          <StatCard
+            label="Credits This Month"
+            value={`€${userValueStats.totalCreditEur.toLocaleString()}`}
+            unit=""
+            trend="distributed to fleet"
+          />
+          <StatCard
+            label="Opt-in Rate"
+            value={userValueStats.optInRatePct.toString()}
+            unit="%"
+            trend="of managed fleet"
+          />
+          <StatCard
+            label="Departure Compliance"
+            value={userValueStats.compliancePct.toString()}
+            unit="%"
+            trend="30-day avg"
+          />
+        </div>
+      </div>
 
       {socBlocks.length > 0 && (
         <div className="bg-card border border-border rounded-lg p-6">

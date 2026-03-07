@@ -10,6 +10,9 @@ import type {
   ActivationBlock,
   SoCBlock,
   LoadShiftBlock,
+  UserEconomicsBlock,
+  DepartureComplianceBlock,
+  OptInStatsBlock,
 } from '../types';
 import { AREA_EV_COUNTS, AREA_PRICE_FACTOR } from './areaConfig';
 import type { MarketArea } from '@/types';
@@ -231,15 +234,16 @@ export function generateFleetStats(area: MarketArea = 'global'): FleetStats {
     hour >= 22 || hour < 6 ? 0.85 : hour >= 9 && hour < 16 ? 0.4 : 0.65;
   const pluggedInCount = Math.round(evCount * pluggedInRatio);
   const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
-  const avgBatteryKwh = 14.7;
-  const upHeadroomKw = Math.round(
-    pluggedInCount * ((avgSoC - 20) / 100) * avgBatteryKwh * 4
-  );
+
+  // Power-based headroom: active chargers × charger power (not energy/time)
+  const activeChargingCount = Math.round(pluggedInCount * 0.8);
+  const upHeadroomKw = Math.round(activeChargingCount * AVG_CHARGER_KW);
   const downHeadroomKw = Math.round(
-    pluggedInCount * ((95 - avgSoC) / 100) * avgBatteryKwh * 4
+    (pluggedInCount - activeChargingCount) * AVG_CHARGER_KW
   );
+
   return {
-    totalCapacityKwh: Math.round(evCount * avgBatteryKwh),
+    totalCapacityKwh: Math.round(evCount * AVG_BATTERY_KWH),
     availableFlexibilityKw: upHeadroomKw,
     activeEvCount: pluggedInCount,
     avgStateOfChargePct: avgSoC,
@@ -248,10 +252,52 @@ export function generateFleetStats(area: MarketArea = 'global'): FleetStats {
   };
 }
 
-const AVG_BATTERY_KWH = 14.7; // 12_450 kWh / 847 EVs
+const AVG_BATTERY_KWH = 55; // Renault Zoe / early Model 3 mix — realistic modern EV
+const AVG_CHARGER_KW = 7.4; // standard home Type 2 AC charger
 const FLEET_SIZE = 847;
-const MIN_SOC_BUFFER = 20; // % guaranteed minimum for drivers
-const MAX_SOC = 95; // % practical ceiling
+const MAX_SOC = 95;
+
+// Seasonal min SoC buffer: winter cold reduces range, users need higher starting SoC
+function seasonalMinBuffer(month: number): number {
+  if (month >= 10 || month <= 1) return 25; // Nov–Feb: cold weather
+  if ((month >= 2 && month <= 3) || (month >= 8 && month <= 9)) return 22; // spring/autumn
+  return 20; // May–Aug: summer
+}
+
+// Departure target SoC: higher in winter (range anxiety)
+function seasonalTargetSoC(month: number): number {
+  return month >= 10 || month <= 1 ? 85 : 80;
+}
+
+// Dynamic SoC floor: rises from minBuffer toward targetSoC in the 3h before departure
+// Mixed fleet: 70% commuter (depart 07:30 weekday / 09:30 weekend),
+//              30% flexible (depart 08:30 weekday / 10:30 weekend)
+// Returns a weighted average floor for the fleet.
+function computeDynamicFloor(
+  hour: number,
+  minute: number,
+  isWeekend: boolean,
+  month: number
+): number {
+  const minBuf = seasonalMinBuffer(month);
+  const target = seasonalTargetSoC(month);
+  const rampHours = 3;
+
+  const commuterDep = isWeekend ? 9.5 : 7.5; // 09:30 / 07:30
+  const flexDep = isWeekend ? 10.5 : 8.5; // 10:30 / 08:30
+  const currentTime = hour + minute / 60;
+
+  function floorForDep(dep: number): number {
+    const hoursUntil = dep - currentTime;
+    if (hoursUntil <= 0 || hoursUntil > rampHours) return minBuf;
+    const ramp = 1 - hoursUntil / rampHours;
+    return Math.round(minBuf + (target - minBuf) * ramp);
+  }
+
+  // Weighted: 70% commuter, 30% flexible
+  const weighted = 0.7 * floorForDep(commuterDep) + 0.3 * floorForDep(flexDep);
+  return Math.round(weighted);
+}
 
 function pluggedInRatioForHour(hour: number, isWeekend: boolean): number {
   const weekday: Record<number, number> = {
@@ -387,14 +433,24 @@ export function generateSoCCurve(
     const socNoise = (seededRandom(seed++) - 0.5) * 4;
     const soc = Math.min(
       MAX_SOC,
-      Math.max(MIN_SOC_BUFFER + 5, avgSoC + socNoise)
+      Math.max(seasonalMinBuffer(date.getMonth()) + 5, avgSoC + socNoise)
     );
 
     const upHeadroomKwh = Math.round(
-      ((soc - MIN_SOC_BUFFER) / 100) * pluggedInCount * AVG_BATTERY_KWH
+      ((soc - seasonalMinBuffer(date.getMonth())) / 100) *
+        pluggedInCount *
+        AVG_BATTERY_KWH
     );
     const downHeadroomKwh = Math.round(
       ((MAX_SOC - soc) / 100) * pluggedInCount * AVG_BATTERY_KWH
+    );
+
+    const minute = current.getMinutes();
+    const dynamicFloorPct = computeDynamicFloor(
+      hour,
+      minute,
+      isWeekend,
+      date.getMonth()
     );
 
     blocks.push({
@@ -403,6 +459,7 @@ export function generateSoCCurve(
       pluggedInCount,
       upHeadroomKwh: Math.max(0, upHeadroomKwh),
       downHeadroomKwh: Math.max(0, downHeadroomKwh),
+      dynamicFloorPct,
     });
 
     current = addMinutes(current, 15);
@@ -770,6 +827,120 @@ export function generateBidTimeline(date: Date): BidBlock[] {
       });
       current = addMinutes(current, 15);
     }
+  }
+  return blocks;
+}
+
+const USER_SHARE = 0.4; // 40% of DA savings credited to EV users
+const MFRR_BONUS_EUR_PER_MWH = 2.5; // bonus per MWh shifted in an mFRR activation
+
+export function generateUserEconomics(daysBack: number): UserEconomicsBlock[] {
+  const shiftBlocks = generateLoadShiftBlocks(daysBack);
+
+  return shiftBlocks.map((b) => {
+    const grossSavings = Math.max(0, b.savingsEur);
+    const userCreditEur = grossSavings * USER_SHARE;
+    const gridioRetainedEur = grossSavings * (1 - USER_SHARE);
+
+    // mFRR bonus: applied to large shift blocks (>50 kWh delta) with ~15% probability
+    const seed = b.timestamp.getTime() % 9999;
+    const mfrrBonusEur =
+      Math.abs(b.deltaKwh) > 50 && seededRandom(seed) > 0.85
+        ? (MFRR_BONUS_EUR_PER_MWH * Math.abs(b.deltaKwh)) / 1000
+        : 0;
+
+    return {
+      timestamp: b.timestamp,
+      userCreditEur: Math.round((userCreditEur + mfrrBonusEur) * 100) / 100,
+      gridioRetainedEur: Math.round(gridioRetainedEur * 100) / 100,
+      mfrrBonusEur: Math.round(mfrrBonusEur * 100) / 100,
+    };
+  });
+}
+
+export function generateDepartureCompliance(
+  daysBack: number
+): DepartureComplianceBlock[] {
+  const blocks: DepartureComplianceBlock[] = [];
+  const now = new Date();
+  const reasonPool: DepartureComplianceBlock['reasons'][number][] = [
+    'grid_event',
+    'low_soc_at_plugin',
+    'short_session',
+  ];
+
+  for (let d = daysBack; d >= 1; d--) {
+    const date = subDays(now, d);
+    const month = date.getMonth();
+    const seed = date.getTime() % 8888;
+    const isWinter = month >= 10 || month <= 1;
+    const winterPenalty = isWinter ? 1.5 : 0;
+
+    const commuterBase = 97.5 + seededRandom(seed) * 2 - winterPenalty;
+    const flexibleBase = 93 + seededRandom(seed + 1) * 4 - winterPenalty;
+
+    const commuterCompliancePct =
+      Math.round(Math.min(99.5, Math.max(93, commuterBase)) * 10) / 10;
+    const flexibleCompliancePct =
+      Math.round(Math.min(98, Math.max(88, flexibleBase)) * 10) / 10;
+
+    const nonComplianceCount = Math.floor(seededRandom(seed + 2) * 8);
+    const reasons = Array.from(
+      { length: Math.min(nonComplianceCount, 3) },
+      (_, i) => reasonPool[Math.floor(seededRandom(seed + 3 + i) * 3)]
+    );
+
+    blocks.push({
+      date,
+      commuterCompliancePct,
+      flexibleCompliancePct,
+      nonComplianceCount,
+      reasons,
+    });
+  }
+  return blocks;
+}
+
+export function generateOptInStats(monthsBack: number): OptInStatsBlock[] {
+  const blocks: OptInStatsBlock[] = [];
+  const now = new Date();
+
+  for (let m = monthsBack; m >= 0; m--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    const seed = date.getTime() % 6666;
+
+    // Fleet-wide rate grows 71% → 84% over monthsBack months
+    const growthFactor = (monthsBack - m) / Math.max(monthsBack, 1);
+    const baseRate = 71 + growthFactor * 13;
+    const noise = (seededRandom(seed) - 0.5) * 1.5;
+    const optInRatePct =
+      Math.round(Math.min(90, Math.max(68, baseRate + noise)) * 10) / 10;
+
+    // Consumer slightly below fleet average; company fleet higher (often mandated)
+    const consumerOptInPct =
+      Math.round(
+        Math.min(
+          88,
+          Math.max(65, optInRatePct - 2 + seededRandom(seed + 1) * 2)
+        ) * 10
+      ) / 10;
+    const fleetOptInPct =
+      Math.round(
+        Math.min(96, Math.max(78, optInRatePct + 7 + seededRandom(seed + 2))) *
+          10
+      ) / 10;
+
+    const newEnrollments = Math.round(5 + seededRandom(seed + 3) * 20);
+    const churned = Math.round(seededRandom(seed + 4) * 6);
+
+    blocks.push({
+      month: date,
+      optInRatePct,
+      consumerOptInPct,
+      fleetOptInPct,
+      newEnrollments,
+      churned,
+    });
   }
   return blocks;
 }

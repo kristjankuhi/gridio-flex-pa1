@@ -9,6 +9,7 @@ import { SettingsProvider } from './store/settingsStore';
 import { Dashboard } from './pages/Dashboard';
 import { PriceEditor } from './pages/PriceEditor';
 import { Settlement } from './pages/Settlement';
+import { EvUsers } from './pages/EvUsers';
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'price-editor', element: <PriceEditor /> },
       { path: 'settlement', element: <Settlement /> },
+      { path: 'ev-users', element: <EvUsers /> },
     ],
   },
 ]);

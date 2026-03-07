@@ -49,6 +49,7 @@ export interface SoCBlock {
   pluggedInCount: number;
   upHeadroomKwh: number;
   downHeadroomKwh: number;
+  dynamicFloorPct: number; // rises toward departure time (20% → 80%)
 }
 
 // --- Flex 2.0 product types ---
@@ -83,6 +84,36 @@ export interface LoadShiftBlock {
   deltaKwh: number; // actualKwh - baselineKwh (negative = load removed, positive = load added)
   daSpotEurMwh: number; // DA spot price for this block
   savingsEur: number; // (baselineKwh - actualKwh) × max(0, daSpotEurMwh) / 1000
+}
+
+// --- EV user economics (bill discount model) ---
+
+export interface UserEconomicsBlock {
+  timestamp: Date;
+  userCreditEur: number; // 40% of DA savings + mFRR bonus
+  gridioRetainedEur: number; // 60% of DA savings
+  mfrrBonusEur: number; // €2.50/MWh per activation
+}
+
+// --- Departure compliance ---
+
+export interface DepartureComplianceBlock {
+  date: Date;
+  commuterCompliancePct: number; // 70% of fleet: weekday departure 07:30, target SoC 80%
+  flexibleCompliancePct: number; // 30% of fleet: fleet/WFH, departure 08:30, target SoC 70%
+  nonComplianceCount: number;
+  reasons: ('grid_event' | 'low_soc_at_plugin' | 'short_session')[];
+}
+
+// --- Opt-in stats ---
+
+export interface OptInStatsBlock {
+  month: Date; // first day of the month (UTC midnight)
+  optInRatePct: number; // fleet-wide weighted average (not a simple average of consumer + fleet rates)
+  consumerOptInPct: number;
+  fleetOptInPct: number;
+  newEnrollments: number;
+  churned: number;
 }
 
 // --- Activation records ---
