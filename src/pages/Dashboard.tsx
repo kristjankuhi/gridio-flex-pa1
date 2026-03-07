@@ -158,6 +158,11 @@ export function Dashboard() {
             </p>
           </div>
         )}
+      <div>
+        <h1 className="text-xl font-semibold mb-1">Fleet Overview</h1>
+        <p className="text-sm text-muted-foreground">
+          Real-time overview of EV fleet capacity and flexibility
+        </p>
       </div>
 
       <PeriodSelector
