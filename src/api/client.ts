@@ -3,6 +3,7 @@ import type {
   TimeBlock,
   PriceBlock,
   PriceCurveVersion,
+  PriceReferenceBlock,
   SimulationResult,
   TimeWindow,
   SoCBlock,
@@ -54,5 +55,9 @@ export const api = {
       newPriceBlocks: PriceBlock[]
     ): Promise<SimulationResult> =>
       post('/simulation/run', { date, newPriceBlocks }),
+  },
+  market: {
+    referencePrices: (date: string): Promise<PriceReferenceBlock[]> =>
+      get(`/market/reference-prices?date=${date}`),
   },
 };

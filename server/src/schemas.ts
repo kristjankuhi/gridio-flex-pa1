@@ -119,6 +119,27 @@ export const SimulationResultSchema = z
   })
   .openapi('SimulationResult');
 
+export const PriceReferenceBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    daSpotEurMwh: z
+      .number()
+      .describe(
+        'DA spot price (real when available, forecast otherwise) in EUR/MWh'
+      ),
+    idForecastEurMwh: z
+      .number()
+      .describe('Intraday forecast price (DA ± spread) in EUR/MWh'),
+    mfrrRefEurMwh: z
+      .number()
+      .describe('mFRR reference price (DA + capacity premium) in EUR/MWh'),
+    isForecast: z.boolean().describe('True when this block is in the future'),
+  })
+  .openapi('PriceReferenceBlock');
+
 export const ErrorSchema = z
   .object({
     error: z.string(),
