@@ -7,6 +7,12 @@ import {
   generateBaselineLoad,
   generateLoadShiftBlocks,
 } from './generators';
+import {
+  AREA_EV_COUNTS,
+  ALL_AREAS,
+  AREA_BZN,
+  AREA_PRICE_FACTOR,
+} from '@/data/areaConfig';
 describe('generateFleetStats', () => {
   it('returns plausible fleet stats', () => {
     const stats = generateFleetStats();
@@ -118,6 +124,33 @@ describe('generateLoadShiftBlocks', () => {
         if (b.deltaKwh < 0) expect(b.savingsEur).toBeGreaterThanOrEqual(0);
         if (b.deltaKwh > 0) expect(b.savingsEur).toBeLessThanOrEqual(0);
       }
+    });
+  });
+});
+
+describe('areaConfig', () => {
+  it('EV counts across specific areas sum to 847', () => {
+    const specific = ALL_AREAS.filter((a) => a !== 'global');
+    const total = specific.reduce((s, a) => s + AREA_EV_COUNTS[a], 0);
+    expect(total).toBe(847);
+  });
+
+  it('global EV count is 847', () => {
+    expect(AREA_EV_COUNTS['global']).toBe(847);
+  });
+
+  it('every non-global area has a BZN code', () => {
+    const specific = ALL_AREAS.filter(
+      (a): a is Exclude<typeof a, 'global'> => a !== 'global'
+    );
+    specific.forEach((a) => {
+      expect(AREA_BZN[a]).toBeTruthy();
+    });
+  });
+
+  it('all price factors are positive', () => {
+    ALL_AREAS.forEach((a) => {
+      expect(AREA_PRICE_FACTOR[a]).toBeGreaterThan(0);
     });
   });
 });
