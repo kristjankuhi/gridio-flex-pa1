@@ -13,7 +13,11 @@ import {
   Cell,
 } from 'recharts';
 import { format, endOfDay, addDays } from 'date-fns';
-import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
+import {
+  generateHistoricLoad,
+  generateForecastLoad,
+  generateBaselineLoad,
+} from '@/data/generators';
 import type { TimeWindow, PeriodRange } from '@/types';
 
 const TEAL = '#00c9a7';
@@ -32,6 +36,7 @@ interface ChartDataPoint {
   label: string;
   flexibleKwh: number;
   nonFlexibleKwh: number;
+  baselineKwh: number | null;
   priceHistoric: number | null;
   priceForecast: number | null;
   isForecast: boolean;
@@ -62,6 +67,7 @@ function aggregateBlocks(
         label: format(b.timestamp, 'HH:mm'),
         flexibleKwh: Math.round(b.flexibleKwh),
         nonFlexibleKwh: Math.round(b.nonFlexibleKwh),
+        baselineKwh: null,
         priceHistoric: isPriceForecast
           ? null
           : Math.round(b.priceEurMwh * 10) / 10,
@@ -118,6 +124,7 @@ function aggregateBlocks(
       label,
       flexibleKwh: Math.round(val.flex),
       nonFlexibleKwh: Math.round(val.nonFlex),
+      baselineKwh: null,
       priceHistoric: isPriceForecast ? null : Math.round(avgPrice * 10) / 10,
       priceForecast: isPriceForecast ? Math.round(avgPrice * 10) / 10 : null,
       isForecast: val.isForecast,
@@ -145,9 +152,14 @@ function getNowLabel(timeWindow: TimeWindow): string {
 interface FleetChartProps {
   range: PeriodRange;
   timeWindow: TimeWindow;
+  showBaseline?: boolean;
 }
 
-export function FleetChart({ range, timeWindow }: FleetChartProps) {
+export function FleetChart({
+  range,
+  timeWindow,
+  showBaseline,
+}: FleetChartProps) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 60_000);
@@ -175,8 +187,29 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
 
-    return aggregateBlocks(historic, forecast, timeWindow, getDAKnownHorizon());
-  }, [range, timeWindow]); // eslint-disable-line react-hooks/exhaustive-deps
+    const aggregated = aggregateBlocks(
+      historic,
+      forecast,
+      timeWindow,
+      getDAKnownHorizon()
+    );
+
+    if (!showBaseline || timeWindow !== '1D') return aggregated;
+
+    const baselineBlocks = generateBaselineLoad(daysBack).filter(
+      (b) => b.timestamp >= range.start && b.timestamp <= range.end
+    );
+    const baselineByLabel = new Map(
+      baselineBlocks.map((b) => [
+        format(b.timestamp, 'HH:mm'),
+        Math.round(b.flexibleKwh + b.nonFlexibleKwh),
+      ])
+    );
+    return aggregated.map((d) => ({
+      ...d,
+      baselineKwh: baselineByLabel.get(d.label) ?? null,
+    }));
+  }, [range, timeWindow, showBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nowLabel = getNowLabel(timeWindow);
 
@@ -185,7 +218,9 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
       <div>
         <h2 className="text-sm font-medium">Fleet Load & Price</h2>
         <p className="text-xs text-muted-foreground">
-          Historic + forecast charging behaviour
+          {showBaseline
+            ? 'Managed load vs uncontrolled baseline — grey dashed line is without Gridio'
+            : 'Historic + forecast charging behaviour'}
         </p>
       </div>
 
@@ -321,6 +356,20 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
               connectNulls={false}
               legendType="none"
             />
+
+            {showBaseline && timeWindow === '1D' && (
+              <Line
+                yAxisId="kwh"
+                type="monotone"
+                dataKey="baselineKwh"
+                name="Uncontrolled baseline"
+                stroke="#475569"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                dot={false}
+                connectNulls={false}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

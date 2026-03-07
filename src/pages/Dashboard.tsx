@@ -208,7 +208,11 @@ export function Dashboard() {
       )}
 
       <div className="bg-card border border-border rounded-lg p-6">
-        <FleetChart range={range} timeWindow={timeWindow} />
+        <FleetChart
+          range={range}
+          timeWindow={timeWindow}
+          showBaseline={!settings.flex2Enabled}
+        />
       </div>
 
       <FlexibilityImpact range={range} timeWindow={timeWindow} />
