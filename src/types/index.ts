@@ -74,6 +74,17 @@ export interface PriceReferenceBlock {
   isForecast: boolean;
 }
 
+// --- DA load shift (Flex 1.0 baseline vs managed comparison) ---
+
+export interface LoadShiftBlock {
+  timestamp: Date;
+  baselineKwh: number; // uncontrolled charging (plug-in-proportional, no price signal)
+  actualKwh: number; // Gridio-managed load (price-shifted)
+  deltaKwh: number; // actualKwh - baselineKwh (negative = load removed, positive = load added)
+  daSpotEurMwh: number; // DA spot price for this block
+  savingsEur: number; // (baselineKwh - actualKwh) × max(0, daSpotEurMwh) / 1000
+}
+
 // --- Activation records ---
 
 export interface ActivationBlock {
