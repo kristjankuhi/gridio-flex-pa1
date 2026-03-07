@@ -1,4 +1,4 @@
-import { subYears, format } from 'date-fns';
+import { subYears, format, addDays } from 'date-fns';
 
 interface HourlyPrice {
   timestamp: Date;
@@ -50,8 +50,9 @@ export async function fetchPricesForZone(
 }
 
 export async function initPriceCache(): Promise<void> {
-  const to = new Date();
-  const from = subYears(to, 2);
+  const now = new Date();
+  const to = addDays(now, 2);
+  const from = subYears(now, 2);
 
   console.log(
     `Fetching 2 years of DA prices for ${ALL_BZN.length} zones from energy-charts.info...`

@@ -243,3 +243,123 @@ export const SaveBidsBodySchema = z
     blocks: z.array(BidBlockSchema).describe('Full bid timeline blocks'),
   })
   .openapi('SaveBidsBody');
+
+export const AreaQuerySchema = z.object({
+  area: z
+    .enum([
+      'global',
+      'BE',
+      'NL',
+      'DE-LU',
+      'FR',
+      'GB',
+      'DK1',
+      'DK2',
+      'FI',
+      'NO2',
+      'SE3',
+      'EE',
+      'LV',
+      'LT',
+    ])
+    .default('global')
+    .describe('Bidding zone / area filter'),
+});
+
+export const MarketStatsSchema = z
+  .object({
+    daLoadKwh: z
+      .number()
+      .describe('Energy in DA-scheduled blocks for the period (kWh)'),
+    daSavingsEur: z
+      .number()
+      .describe('Cost saved vs unoptimised baseline — DA market (€)'),
+    idAdjustmentsKwh: z
+      .number()
+      .describe('Volume shifted via intraday price overrides (kWh)'),
+    idSavingsEur: z
+      .number()
+      .describe('Additional savings from intraday adjustments (€)'),
+    from: z.string().datetime().describe('Period start (ISO 8601)'),
+    to: z.string().datetime().describe('Period end (ISO 8601)'),
+  })
+  .openapi('MarketStats');
+
+export const ActivationBlockSchema = z
+  .object({
+    timestamp: z.string().datetime(),
+    baselineKwh: z.number(),
+    actualKwh: z.number(),
+    deltaKwh: z.number(),
+    priceEurMwh: z.number(),
+    valueEur: z.number(),
+  })
+  .openapi('ActivationBlock');
+
+export const ActivationRecordSchema = z
+  .object({
+    id: z.string(),
+    timestamp: z.string().datetime(),
+    type: z.enum(['price-curve', 'mfrr']),
+    direction: z.enum(['up', 'down']).nullable(),
+    requestedKw: z.number().nullable(),
+    deliveredKw: z.number().nullable(),
+    durationMin: z.number().int(),
+    baselineKwh: z.number(),
+    actualKwh: z.number(),
+    shiftedKwh: z.number(),
+    revenueEur: z.number(),
+  })
+  .openapi('ActivationRecord');
+
+export const SettlementSummarySchema = z
+  .object({
+    totalLoadShiftedKwh: z.number(),
+    daSavingsEur: z.number(),
+    idSavingsEur: z.number(),
+    mfrrRevenueEur: z.number(),
+    totalEarnedEur: z.number(),
+    from: z.string().datetime(),
+    to: z.string().datetime(),
+  })
+  .openapi('SettlementSummary');
+
+export const PaginatedActivationsSchema = z
+  .object({
+    data: z.array(ActivationRecordSchema),
+    meta: z.object({
+      total: z.number().int(),
+      page: z.number().int(),
+      limit: z.number().int(),
+      hasMore: z.boolean(),
+    }),
+  })
+  .openapi('PaginatedActivations');
+
+export const MfrrActivationResponseSchema = z
+  .object({
+    activationId: z.string(),
+    status: z.enum(['accepted', 'rejected']),
+    direction: z.enum(['up', 'down']),
+    requestedKw: z.number(),
+    confirmedKw: z.number().nullable(),
+    reliabilityAdjustedKw: z.number().nullable(),
+    reason: z
+      .string()
+      .optional()
+      .describe('Rejection reason if status is rejected'),
+    tDispatch: z.string().datetime().nullable(),
+  })
+  .openapi('MfrrActivationResponse');
+
+export const ImbalancePriceBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    imbalancePriceEurMwh: z
+      .number()
+      .describe('Belgian imbalance settlement price (EUR/MWh)'),
+  })
+  .openapi('ImbalancePriceBlock');

@@ -997,7 +997,8 @@ export function generateMarketSplitStats(
 }
 
 export function generateActivationHistory(
-  daysBack: number
+  daysBack: number,
+  imbalancePriceLookup?: Map<number, number>
 ): ActivationRecord[] {
   const records: ActivationRecord[] = [];
   const now = new Date();
@@ -1038,8 +1039,6 @@ export function generateActivationHistory(
       const energyBidPrice = isMfrr
         ? 60 + seededRandom(seed++) * 60
         : 40 + seededRandom(seed++) * 40;
-      const imbalancePriceEurMwh = 80;
-
       // Delivery rate: 85-100%
       const deliveryRate = 0.85 + seededRandom(seed++) * 0.15;
       const requestedKw = isMfrr ? Math.round(reservedMw * 1000) : null;
@@ -1064,6 +1063,10 @@ export function generateActivationHistory(
             deliveryRate < 0.95
               ? Math.abs(baseline * shiftRatio) * (1 - deliveryRate)
               : 0;
+          const roundedMs =
+            Math.floor(bts.getTime() / (15 * 60_000)) * (15 * 60_000);
+          const imbalancePriceEurMwh =
+            imbalancePriceLookup?.get(roundedMs) ?? 80;
           const imbalanceCost = (imbalancePriceEurMwh * undeliveredKwh) / 1000;
 
           return {

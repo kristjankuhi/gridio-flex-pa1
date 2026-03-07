@@ -163,3 +163,8 @@ export type MarketArea =
   | 'EE'
   | 'LV'
   | 'LT';
+
+export interface ImbalancePriceBlock {
+  timestamp: string;
+  imbalancePriceEurMwh: number;
+}

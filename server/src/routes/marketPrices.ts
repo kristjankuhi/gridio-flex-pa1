@@ -2,7 +2,15 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
 import { generatePriceReference } from '@/data/generators';
 import { getPriceCacheFor15MinBlock } from '../services/priceService';
-import { PriceReferenceBlockSchema, ProblemDetailsSchema } from '../schemas';
+import {
+  getMfrrMarginalPrice,
+  getImbalancePriceRange,
+} from '../services/eliaService';
+import {
+  PriceReferenceBlockSchema,
+  ImbalancePriceBlockSchema,
+  ProblemDetailsSchema,
+} from '../schemas';
 
 export const marketPricesRoutes = new OpenAPIHono();
 
@@ -64,16 +72,51 @@ marketPricesRoutes.openapi(
       const realDA = getPriceCacheFor15MinBlock(b.timestamp, bzn);
       if (realDA === null)
         return { ...b, timestamp: b.timestamp.toISOString() };
-      const mfrrPremium = b.mfrrRefEurMwh - b.daSpotEurMwh;
+      const syntheticPremium = b.mfrrRefEurMwh - b.daSpotEurMwh;
+      const realMfrr = getMfrrMarginalPrice(b.timestamp);
       return {
         ...b,
         daSpotEurMwh: realDA,
-        mfrrRefEurMwh: realDA + mfrrPremium,
+        mfrrRefEurMwh: realMfrr ?? realDA + syntheticPremium,
+        isForecast: false,
         timestamp: b.timestamp.toISOString(),
       };
     });
 
     c.header('Cache-Control', 'public, max-age=3600');
     return c.json(withRealDA);
+  }
+);
+
+marketPricesRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/market/imbalance-prices',
+    tags: ['Market'],
+    summary: 'Get Belgian imbalance prices for a date range',
+    description:
+      'Returns real 15-min imbalance settlement prices from Elia Open Data. ' +
+      'Only blocks with cached real data are returned — gaps mean the client should fall back to a default.',
+    request: {
+      query: z.object({
+        start: z.string().date().describe('Start date (YYYY-MM-DD, inclusive)'),
+        end: z.string().date().describe('End date (YYYY-MM-DD, inclusive)'),
+      }),
+    },
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.array(ImbalancePriceBlockSchema),
+          },
+        },
+        description: 'Imbalance price blocks',
+      },
+    },
+  }),
+  (c) => {
+    const { start, end } = c.req.valid('query');
+    const blocks = getImbalancePriceRange(parseISO(start), parseISO(end));
+    return c.json(blocks);
   }
 );

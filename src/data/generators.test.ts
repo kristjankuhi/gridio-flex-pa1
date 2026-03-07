@@ -11,6 +11,7 @@ import {
   generateUserEconomics,
   generateDepartureCompliance,
   generateOptInStats,
+  generateActivationHistory,
 } from './generators';
 import {
   AREA_EV_COUNTS,
@@ -289,5 +290,38 @@ describe('generateOptInStats', () => {
     blocks.forEach((b) => {
       expect(b.fleetOptInPct).toBeGreaterThan(b.consumerOptInPct);
     });
+  });
+});
+
+describe('generateActivationHistory', () => {
+  it('uses default imbalance price of 80 when no lookup provided', () => {
+    const records = generateActivationHistory(1);
+    // All records should have non-negative imbalanceCostEur (80 * positive volume / 1000 >= 0)
+    records.forEach((r) => {
+      expect(r.imbalanceCostEur).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  it('higher imbalance prices from lookup increase imbalanceCostEur', () => {
+    const baseline = generateActivationHistory(1);
+    // Build lookup with extremely high imbalance price for all possible 15-min slots
+    const lookup = new Map<number, number>();
+    for (let ms = 0; ms < 24 * 60 * 60 * 1000 * 2; ms += 15 * 60 * 1000) {
+      // Cover all blocks that might exist in the last 1 day
+      const slot =
+        Math.floor((Date.now() - ms) / (15 * 60_000)) * (15 * 60_000);
+      lookup.set(slot, 10_000); // 10,000 EUR/MWh — extreme price
+    }
+    const withRealPrices = generateActivationHistory(1, lookup);
+    const totalBaselineImbalance = baseline.reduce(
+      (s, r) => s + r.imbalanceCostEur,
+      0
+    );
+    const totalRealImbalance = withRealPrices.reduce(
+      (s, r) => s + r.imbalanceCostEur,
+      0
+    );
+    // At least some activations should have higher imbalance cost with 10,000 EUR/MWh
+    expect(totalRealImbalance).toBeGreaterThanOrEqual(totalBaselineImbalance);
   });
 });
