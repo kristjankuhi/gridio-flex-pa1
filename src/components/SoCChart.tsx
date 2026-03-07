@@ -27,9 +27,17 @@ export function SoCChart({ blocks }: SoCChartProps) {
         pluggedInCount: b.pluggedInCount,
         upHeadroomMwh: Math.round((b.upHeadroomKwh / 1000) * 100) / 100,
         downHeadroomMwh: Math.round((b.downHeadroomKwh / 1000) * 100) / 100,
+        dynamicFloorPct: b.dynamicFloorPct, // NEW
       })),
     [blocks]
   );
+
+  const minBuffer = useMemo(() => {
+    const month = new Date().getMonth();
+    if (month >= 10 || month <= 1) return 25;
+    if ((month >= 2 && month <= 3) || (month >= 8 && month <= 9)) return 22;
+    return 20;
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -92,11 +100,11 @@ export function SoCChart({ blocks }: SoCChartProps) {
             <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
             <ReferenceLine
               yAxisId="soc"
-              y={20}
+              y={minBuffer}
               stroke="#ef4444"
               strokeDasharray="3 3"
               label={{
-                value: 'Min buffer (20%)',
+                value: `Min buffer (${minBuffer}%)`,
                 fill: '#ef4444',
                 fontSize: 9,
                 position: 'insideBottomLeft',
@@ -143,6 +151,16 @@ export function SoCChart({ blocks }: SoCChartProps) {
               name="Avg SoC (%)"
               stroke="#818cf8"
               strokeWidth={2}
+              dot={false}
+            />
+            <Line
+              yAxisId="soc"
+              type="monotone"
+              dataKey="dynamicFloorPct"
+              name="Departure floor"
+              stroke="#f59e0b"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
               dot={false}
             />
           </ComposedChart>
