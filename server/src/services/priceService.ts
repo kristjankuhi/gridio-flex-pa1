@@ -1,4 +1,4 @@
-import { subYears, format, addDays } from 'date-fns';
+import { subYears, format } from 'date-fns';
 
 interface HourlyPrice {
   timestamp: Date;
@@ -50,7 +50,7 @@ export async function fetchPricesForZone(
 }
 
 export async function initPriceCache(): Promise<void> {
-  const to = addDays(new Date(), 2);
+  const to = new Date();
   const from = subYears(to, 2);
 
   console.log(

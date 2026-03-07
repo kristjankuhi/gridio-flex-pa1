@@ -69,7 +69,6 @@ marketPricesRoutes.openapi(
         ...b,
         daSpotEurMwh: realDA,
         mfrrRefEurMwh: realDA + mfrrPremium,
-        isForecast: false,
         timestamp: b.timestamp.toISOString(),
       };
     });
