@@ -18,7 +18,7 @@ import {
   generateForecastLoad,
   generateBaselineLoad,
 } from '@/data/generators';
-import type { TimeWindow, PeriodRange } from '@/types';
+import type { TimeWindow, PeriodRange, MarketArea } from '@/types';
 
 const TEAL = '#00c9a7';
 const AMBER = '#f59e0b';
@@ -153,12 +153,14 @@ interface FleetChartProps {
   range: PeriodRange;
   timeWindow: TimeWindow;
   showBaseline?: boolean;
+  area?: MarketArea;
 }
 
 export function FleetChart({
   range,
   timeWindow,
   showBaseline,
+  area = 'global',
 }: FleetChartProps) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -180,10 +182,10 @@ export function FleetChart({
       Math.ceil((range.end.getTime() - now.getTime()) / 86400000) + 1
     );
 
-    const historic = generateHistoricLoad(daysBack).filter(
+    const historic = generateHistoricLoad(daysBack, area).filter(
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
-    const forecast = generateForecastLoad(daysAhead).filter(
+    const forecast = generateForecastLoad(daysAhead, area).filter(
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
 
@@ -196,7 +198,7 @@ export function FleetChart({
 
     if (!showBaseline || timeWindow !== '1D') return aggregated;
 
-    const baselineBlocks = generateBaselineLoad(daysBack).filter(
+    const baselineBlocks = generateBaselineLoad(daysBack, area).filter(
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
     const baselineByLabel = new Map(
@@ -209,7 +211,7 @@ export function FleetChart({
       ...d,
       baselineKwh: baselineByLabel.get(d.label) ?? null,
     }));
-  }, [range, timeWindow, showBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [range, timeWindow, showBaseline, area]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nowLabel = getNowLabel(timeWindow);
 
