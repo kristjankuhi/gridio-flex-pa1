@@ -12,7 +12,7 @@ Internal prototype demonstrating the Gridio Flex concept: using an EV fleet as a
 
 - Real-time fleet overview: total capacity, opted-in flexibility, active EVs, average SoC
 - Day-Ahead and Intraday market split stat rows (DA load, DA savings, ID adjustments, ID savings)
-- mFRR stat row (conditional on Settings → mFRR Features toggle)
+- mFRR stat row (Flex 2.0 mode) or DA/ID savings row (Flex 1.0 mode), toggled via Settings → Flex mode
 - Period selector with ← → navigation across 1D / 1W / 1M / 1Y windows, navigable up to 1 year into the future
 - Fleet Load & Price chart (Recharts ComposedChart):
   - Stacked bars: opted-in flexible load vs non-flexible, translucent for forecast
@@ -31,24 +31,44 @@ Internal prototype demonstrating the Gridio Flex concept: using an EV fleet as a
 
 ### Settlement
 
-- Period selector (default 1W) over the full activation history
+- Period selector (default 1M) over the full activation history
 - Summary stat cards: total load shifted, DA/ID cost savings, mFRR revenue, total earned
-- Activation log table with type filter (all / price-curve / mFRR) and expandable row detail (15-min block breakdown)
+- Activation log table with product filter and expandable row detail (15-min block breakdown)
 - Download CSV export
+
+### EV Users
+
+- Per-vehicle bill credit breakdown (40% of DA savings + mFRR bonus)
+- Departure compliance rate for commuter vs flexible segments (30-day rolling)
+- Opt-in rate trend by month (fleet vs consumer segments)
 
 ### Settings panel
 
 - Gear icon in the top nav opens a slide-out sheet
 - Three toggles persisted to `localStorage`:
-  - **mFRR Features** — shows/hides mFRR stat cards and activation data (Flex 2.0)
+  - **Flex mode** — switches between Flex 1.0 (price-curve load shifting) and Flex 2.0 (TSO-dispatched grid balancing products)
   - **Show Forecast** — toggle forecast overlay on charts
   - **Real-time Simulation** — advance the simulation clock in real time
 
 ---
 
+## API authentication
+
+All `/api/v1/*` endpoints require an `X-API-Key` header. Three development keys are seeded at server startup:
+
+| Key                                | Scopes             |
+| ---------------------------------- | ------------------ |
+| `gf_dev_readonly_aabbccddeeff0011` | read               |
+| `gf_dev_trader_aabbccddeeff0022`   | read, write        |
+| `gf_dev_admin_aabbccddeeff0033`    | read, write, admin |
+
+The frontend client uses the trader key automatically. Full API docs (with auth) are available at http://localhost:3000/api/docs.
+
+---
+
 ## Data model
 
-All data is **simulated** — no real fleet or market data is read at runtime (except the optional Belgian DA price fetch at server startup).
+All data is **simulated** — no real fleet or market data is read at runtime (except Belgian DA prices and Elia imbalance prices fetched at server startup).
 
 ### Price generation — Belgian DA market model
 
@@ -173,20 +193,39 @@ app_workspace/
 │       ├── routes/
 │       │   ├── fleet.ts              # GET /fleet/stats, GET /fleet/load
 │       │   ├── priceCurve.ts         # GET/POST /price-curve, versioning
-│       │   └── simulation.ts         # POST /simulation/run
+│       │   ├── simulation.ts         # POST /simulation/run
+│       │   ├── bids.ts               # GET/POST /bids — Flex 2.0 bid timeline
+│       │   ├── marketPrices.ts       # GET /market/reference-prices, /market/imbalance-prices
+│       │   ├── soc.ts                # GET /fleet/soc
+│       │   ├── settlement.ts         # GET /settlement/summary, /settlement/activations
+│       │   ├── mfrr.ts               # POST /mfrr/activate, /mfrr/deactivate
+│       │   └── apiKeys.ts            # GET/POST /api-keys, DELETE /api-keys/{id}
+│       ├── middleware/
+│       │   ├── auth.ts               # X-API-Key validation
+│       │   ├── requestId.ts          # X-Request-ID header
+│       │   └── idempotency.ts        # Idempotency-Key dedup
 │       ├── services/
-│       │   ├── priceService.ts       # Fetches real Belgian DA prices (energy-charts.info)
+│       │   ├── priceService.ts       # Real Belgian DA prices (energy-charts.info)
+│       │   ├── eliaService.ts        # Real Elia imbalance + mFRR prices (ods047/134/162)
 │       │   └── simulationClock.ts    # Server-side simulation clock (15-min ticks)
 │       ├── schemas.ts                # Zod/OpenAPI schemas
-│       └── store/                    # In-memory price curve version store
+│       └── store/
+│           ├── apiKeyStore.ts        # In-memory API key store (3 dev keys seeded)
+│           ├── bidStore.ts           # In-memory bid timeline store
+│           ├── priceCurveStore.ts    # In-memory price curve version store
+│           └── settlementStore.ts    # In-memory activation record store
 ├── src/
 │   ├── api/
-│   │   └── client.ts                 # Typed REST API client
+│   │   └── client.ts                 # Typed REST API client (sends X-API-Key header)
 │   ├── components/
 │   │   ├── ui/                       # shadcn/ui primitives
 │   │   ├── ActivationTable.tsx       # Settlement activation log with expand/filter
+│   │   ├── BidSummaryStrip.tsx       # Active bid chips per product (Flex 2.0 Dashboard)
+│   │   ├── BidTimeline.tsx           # 24h drag-to-draw bid availability canvas (Flex 2.0)
+│   │   ├── SoCChart.tsx              # Fleet SoC curve + up/down headroom areas
 │   │   ├── FleetChart.tsx            # Main fleet load + price ComposedChart
 │   │   ├── FlexibilityImpact.tsx     # KPI strip + delta bar chart
+│   │   ├── LoadShiftChart.tsx        # Settlement DA shift bar chart (Flex 1.0)
 │   │   ├── Layout.tsx                # App shell
 │   │   ├── PeriodSelector.tsx        # ← 1D/1W/1M/1Y → navigation
 │   │   ├── PriceTable.tsx            # 96-row editable price table
@@ -196,15 +235,17 @@ app_workspace/
 │   │   ├── TopNav.tsx                # Navigation bar
 │   │   └── VersionHistoryPanel.tsx   # Price curve version history
 │   ├── data/
-│   │   ├── chartBuckets.ts           # Shared x-axis bucket builder (FleetChart + FlexibilityImpact)
+│   │   ├── areaConfig.ts             # EV counts + price factors per ENTSO-E bidding zone
+│   │   ├── chartBuckets.ts           # Shared x-axis bucket builder
 │   │   └── generators.ts             # Simulated data generators (fleet load, prices, activations)
 │   ├── hooks/
-│   │   ├── usePeriodSelector.ts      # Period navigation state
+│   │   ├── usePeriodSelector.ts      # Period navigation state (1D/1W/1M/1Y, up to +1Y)
 │   │   └── usePriceTableState.ts     # Price table edit state
 │   ├── pages/
 │   │   ├── Dashboard.tsx             # /dashboard
 │   │   ├── PriceEditor.tsx           # /price-editor
-│   │   └── Settlement.tsx            # /settlement
+│   │   ├── Settlement.tsx            # /settlement
+│   │   └── EvUsers.tsx               # /ev-users
 │   ├── store/
 │   │   ├── priceCurveStore.tsx       # React Context price curve state
 │   │   └── settingsStore.tsx         # React Context settings (localStorage-backed)
