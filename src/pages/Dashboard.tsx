@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import { StatCard } from '@/components/StatCard';
 import { FleetChart } from '@/components/FleetChart';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { FlexibilityImpact } from '@/components/FlexibilityImpact';
+import { SoCChart } from '@/components/SoCChart';
+import { BidSummaryStrip } from '@/components/BidSummaryStrip';
 import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { api } from '@/api/client';
 import {
@@ -11,10 +14,13 @@ import {
   generateMarketSplitStats,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
+import type { FleetStats, SoCBlock, BidBlock } from '@/types';
 
 export function Dashboard() {
   const { settings } = useSettings();
   const [stats, setStats] = useState<FleetStats>(() => generateFleetStats());
+  const [socBlocks, setSocBlocks] = useState<SoCBlock[]>([]);
+  const [bidBlocks, setBidBlocks] = useState<BidBlock[]>([]);
   const {
     timeWindow,
     setTimeWindow,
@@ -30,7 +36,46 @@ export function Dashboard() {
     api.fleet.stats().then(setStats).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    api.fleet
+      .soc(today)
+      .then((blocks) =>
+        setSocBlocks(
+          blocks.map((b) => ({
+            ...b,
+            timestamp: new Date(b.timestamp as unknown as string),
+          }))
+        )
+      )
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (!settings.flex2Enabled) return;
+    const today = format(new Date(), 'yyyy-MM-dd');
+    api.bids
+      .get(today)
+      .then((blocks) =>
+        setBidBlocks(
+          blocks.map((b) => ({
+            ...b,
+            timestamp: new Date(b.timestamp as unknown as string),
+          }))
+        )
+      )
+      .catch(console.error);
+  }, [settings.flex2Enabled]);
+
   const marketStats = useMemo(() => generateMarketSplitStats(range), [range]);
+
+  const totalReservedMw = bidBlocks
+    .filter((b) => b.isAvailable)
+    .reduce((max, b) => Math.max(max, b.reservedMw), 0);
+
+  const capacityRevenueToday = bidBlocks
+    .filter((b) => b.isAvailable)
+    .reduce((s, b) => s + b.reservedMw * b.capacityPriceEurMwH * 0.25, 0);
 
   const periodStats = useMemo(() => {
     if (timeWindow === '1D') return null; // use API snapshot for 1D
@@ -78,16 +123,6 @@ export function Dashboard() {
           unit="kWh"
         />
         <StatCard
-          label="Opted-in for Flexibility"
-          value={
-            timeWindow === '1D'
-              ? (stats?.availableFlexibilityKw ?? 0).toLocaleString()
-              : (periodStats?.optedInFlexibilityKwh ?? 0).toLocaleString()
-          }
-          unit={timeWindow === '1D' ? 'kW' : 'kWh'}
-          trend={timeWindow === '1D' ? '+8% vs last week' : undefined}
-        />
-        <StatCard
           label="Active EVs"
           value={(
             periodStats?.activeEvCount ??
@@ -97,64 +132,37 @@ export function Dashboard() {
           unit="vehicles"
         />
         <StatCard
-          label="Avg. State of Charge"
-          value={(
-            periodStats?.avgStateOfChargePct ??
-            stats?.avgStateOfChargePct ??
-            0
-          ).toString()}
-          unit="%"
+          label="Up Headroom"
+          value={(stats?.upHeadroomKw ?? 0).toLocaleString()}
+          unit="kW"
+          trend="Available for up-regulation"
+        />
+        <StatCard
+          label="Down Headroom"
+          value={(stats?.downHeadroomKw ?? 0).toLocaleString()}
+          unit="kW"
+          trend="Available for down-regulation"
         />
       </div>
 
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">
-          Day-Ahead Market
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="DA Load"
-            value={marketStats.daLoadKwh.toLocaleString()}
-            unit="kWh"
-          />
-          <StatCard
-            label="DA Savings"
-            value={`€${marketStats.daSavingsEur.toLocaleString()}`}
-            unit=""
-          />
-          <StatCard
-            label="ID Adjustments"
-            value={marketStats.idAdjustmentsKwh.toLocaleString()}
-            unit="kWh"
-          />
-          <StatCard
-            label="ID Savings"
-            value={`€${marketStats.idSavingsEur.toLocaleString()}`}
-            unit=""
-          />
-        </div>
-      </div>
-
-      {settings.mfrrEnabled && (
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            mFRR (Flex 2.0)
-          </p>
+      {settings.flex2Enabled ? (
+        <div className="space-y-3">
+          <BidSummaryStrip blocks={bidBlocks} />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
-              label="mFRR Up"
-              value={marketStats.mfrrUpKwh.toLocaleString()}
-              unit="kWh"
+              label="Reserved Capacity"
+              value={totalReservedMw.toFixed(2)}
+              unit="MW"
             />
             <StatCard
-              label="mFRR Down"
-              value={marketStats.mfrrDownKwh.toLocaleString()}
-              unit="kWh"
-            />
-            <StatCard
-              label="mFRR Revenue"
-              value={`€${marketStats.mfrrRevenueEur.toLocaleString()}`}
+              label="Capacity Revenue Today"
+              value={`€${Math.round(capacityRevenueToday).toLocaleString()}`}
               unit=""
+            />
+            <StatCard
+              label="mFRR Activations (30d)"
+              value={marketStats.mfrrDeliveryRatePct.toString()}
+              unit="events"
             />
             <StatCard
               label="Delivery Rate"
@@ -162,6 +170,40 @@ export function Dashboard() {
               unit="%"
             />
           </div>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">
+            Day-Ahead Market
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="DA Load"
+              value={marketStats.daLoadKwh.toLocaleString()}
+              unit="kWh"
+            />
+            <StatCard
+              label="DA Savings"
+              value={`€${marketStats.daSavingsEur.toLocaleString()}`}
+              unit=""
+            />
+            <StatCard
+              label="ID Adjustments"
+              value={marketStats.idAdjustmentsKwh.toLocaleString()}
+              unit="kWh"
+            />
+            <StatCard
+              label="ID Savings"
+              value={`€${marketStats.idSavingsEur.toLocaleString()}`}
+              unit=""
+            />
+          </div>
+        </div>
+      )}
+
+      {socBlocks.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <SoCChart blocks={socBlocks} />
         </div>
       )}
 

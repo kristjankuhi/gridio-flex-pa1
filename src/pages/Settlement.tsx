@@ -3,10 +3,9 @@ import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { ActivationTable } from '@/components/ActivationTable';
 import { StatCard } from '@/components/StatCard';
-import {
-  generateActivationHistory,
-  type ActivationRecord,
-} from '@/data/generators';
+import { generateActivationHistory } from '@/data/generators';
+import type { ActivationRecord } from '@/types';
+import { useSettings } from '@/store/settingsStore';
 
 function exportCsv(activations: ActivationRecord[], label: string) {
   const header =
@@ -14,7 +13,7 @@ function exportCsv(activations: ActivationRecord[], label: string) {
   const rows = activations.map((a) =>
     [
       a.timestamp.toISOString(),
-      a.type,
+      a.product,
       a.direction ?? '',
       a.requestedKw ?? '',
       a.deliveredKw ?? '',
@@ -36,6 +35,7 @@ function exportCsv(activations: ActivationRecord[], label: string) {
 }
 
 export function Settlement() {
+  const { settings } = useSettings();
   const {
     timeWindow,
     setTimeWindow,
@@ -60,13 +60,13 @@ export function Settlement() {
     (s, a) => s + Math.abs(a.shiftedKwh),
     0
   );
-  const savings = activations
-    .filter((a) => a.type === 'price-curve')
-    .reduce((s, a) => s + a.revenueEur, 0);
-  const mfrrRevenue = activations
-    .filter((a) => a.type === 'mfrr')
-    .reduce((s, a) => s + a.revenueEur, 0);
-  const total = savings + mfrrRevenue;
+  const capacityRevenue = activations.reduce(
+    (s, a) => s + a.capacityPaymentEur,
+    0
+  );
+  const energyRevenue = activations.reduce((s, a) => s + a.energyPaymentEur, 0);
+  const imbalanceCost = activations.reduce((s, a) => s + a.imbalanceCostEur, 0);
+  const netRevenue = activations.reduce((s, a) => s + a.revenueEur, 0);
 
   return (
     <div className="space-y-8">
@@ -88,28 +88,53 @@ export function Settlement() {
         onJumpTo={jumpTo}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Load Shifted"
-          value={Math.round(totalShifted).toLocaleString()}
-          unit="kWh"
-        />
-        <StatCard
-          label="DA / ID Cost Savings"
-          value={`€${Math.round(savings).toLocaleString()}`}
-          unit=""
-        />
-        <StatCard
-          label="mFRR Revenue"
-          value={`€${Math.round(mfrrRevenue).toLocaleString()}`}
-          unit=""
-        />
-        <StatCard
-          label="Total Earned"
-          value={`€${Math.round(total).toLocaleString()}`}
-          unit=""
-        />
-      </div>
+      {settings.flex2Enabled ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Capacity Payments"
+            value={`€${Math.round(capacityRevenue).toLocaleString()}`}
+            unit=""
+          />
+          <StatCard
+            label="Energy Payments"
+            value={`€${Math.round(energyRevenue).toLocaleString()}`}
+            unit=""
+          />
+          <StatCard
+            label="Imbalance Costs"
+            value={`-€${Math.round(imbalanceCost).toLocaleString()}`}
+            unit=""
+          />
+          <StatCard
+            label="Net Revenue"
+            value={`€${Math.round(netRevenue).toLocaleString()}`}
+            unit=""
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Load Shifted"
+            value={Math.round(totalShifted).toLocaleString()}
+            unit="kWh"
+          />
+          <StatCard
+            label="DA / ID Cost Savings"
+            value={`€${Math.round(netRevenue).toLocaleString()}`}
+            unit=""
+          />
+          <StatCard
+            label="Capacity Revenue"
+            value={`€${Math.round(capacityRevenue).toLocaleString()}`}
+            unit=""
+          />
+          <StatCard
+            label="Net Revenue"
+            value={`€${Math.round(netRevenue).toLocaleString()}`}
+            unit=""
+          />
+        </div>
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">

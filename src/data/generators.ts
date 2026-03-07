@@ -1,5 +1,15 @@
 import { addMinutes, startOfDay, subDays, format } from 'date-fns';
-import type { TimeBlock, FleetStats, PriceBlock } from '../types';
+import type {
+  TimeBlock,
+  FleetStats,
+  PriceBlock,
+  PriceReferenceBlock,
+  FlexProduct,
+  BidBlock,
+  ActivationRecord,
+  ActivationBlock,
+  SoCBlock,
+} from '../types';
 
 // Seeded pseudo-random for reproducibility in demos
 function seededRandom(seed: number): number {
@@ -209,12 +219,186 @@ function baseLoadKwhForHour(hour: number, isWeekend: boolean): number {
 }
 
 export function generateFleetStats(): FleetStats {
+  const now = new Date();
+  const hour = now.getHours();
+  const pluggedInRatio =
+    hour >= 22 || hour < 6 ? 0.85 : hour >= 9 && hour < 16 ? 0.4 : 0.65;
+  const pluggedInCount = Math.round(847 * pluggedInRatio);
+  const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
+  const avgBatteryKwh = 14.7;
+  const upHeadroomKw = Math.round(
+    (((avgSoC - 20) / 100) * pluggedInCount * avgBatteryKwh) / (15 / 60)
+  );
+  const downHeadroomKw = Math.round(
+    (((95 - avgSoC) / 100) * pluggedInCount * avgBatteryKwh) / (15 / 60)
+  );
   return {
     totalCapacityKwh: 12_450,
     availableFlexibilityKw: 3_280,
-    activeEvCount: 847,
-    avgStateOfChargePct: 62,
+    activeEvCount: pluggedInCount,
+    avgStateOfChargePct: avgSoC,
+    upHeadroomKw,
+    downHeadroomKw,
   };
+}
+
+const AVG_BATTERY_KWH = 14.7; // 12_450 kWh / 847 EVs
+const FLEET_SIZE = 847;
+const MIN_SOC_BUFFER = 20; // % guaranteed minimum for drivers
+const MAX_SOC = 95; // % practical ceiling
+
+function pluggedInRatioForHour(hour: number, isWeekend: boolean): number {
+  const weekday: Record<number, number> = {
+    0: 0.84,
+    1: 0.86,
+    2: 0.87,
+    3: 0.86,
+    4: 0.83,
+    5: 0.72,
+    6: 0.58,
+    7: 0.45,
+    8: 0.4,
+    9: 0.38,
+    10: 0.38,
+    11: 0.39,
+    12: 0.4,
+    13: 0.41,
+    14: 0.42,
+    15: 0.45,
+    16: 0.52,
+    17: 0.62,
+    18: 0.72,
+    19: 0.78,
+    20: 0.82,
+    21: 0.84,
+    22: 0.85,
+    23: 0.85,
+  };
+  const weekend: Record<number, number> = {
+    0: 0.75,
+    1: 0.76,
+    2: 0.77,
+    3: 0.76,
+    4: 0.74,
+    5: 0.7,
+    6: 0.65,
+    7: 0.58,
+    8: 0.52,
+    9: 0.48,
+    10: 0.46,
+    11: 0.45,
+    12: 0.46,
+    13: 0.47,
+    14: 0.48,
+    15: 0.52,
+    16: 0.58,
+    17: 0.65,
+    18: 0.7,
+    19: 0.74,
+    20: 0.76,
+    21: 0.77,
+    22: 0.76,
+    23: 0.76,
+  };
+  return (isWeekend ? weekend[hour] : weekday[hour]) ?? 0.65;
+}
+
+function avgSoCForHour(hour: number, isWeekend: boolean): number {
+  const weekday: Record<number, number> = {
+    0: 76,
+    1: 80,
+    2: 82,
+    3: 83,
+    4: 82,
+    5: 78,
+    6: 72,
+    7: 64,
+    8: 57,
+    9: 53,
+    10: 51,
+    11: 50,
+    12: 50,
+    13: 51,
+    14: 52,
+    15: 54,
+    16: 57,
+    17: 61,
+    18: 65,
+    19: 68,
+    20: 71,
+    21: 73,
+    22: 75,
+    23: 76,
+  };
+  const weekend: Record<number, number> = {
+    0: 72,
+    1: 75,
+    2: 77,
+    3: 78,
+    4: 77,
+    5: 74,
+    6: 70,
+    7: 65,
+    8: 60,
+    9: 56,
+    10: 54,
+    11: 53,
+    12: 53,
+    13: 54,
+    14: 55,
+    15: 57,
+    16: 60,
+    17: 64,
+    18: 67,
+    19: 70,
+    20: 72,
+    21: 73,
+    22: 73,
+    23: 72,
+  };
+  return (isWeekend ? weekend[hour] : weekday[hour]) ?? 62;
+}
+
+export function generateSoCCurve(date: Date): SoCBlock[] {
+  const blocks: SoCBlock[] = [];
+  let current = startOfDay(date);
+  let seed = date.getTime() % 7777;
+
+  for (let i = 0; i < 96; i++) {
+    const hour = current.getHours();
+    const isWeekend = current.getDay() === 0 || current.getDay() === 6;
+
+    const pluggedInRatio = pluggedInRatioForHour(hour, isWeekend);
+    const plugInNoise = 1 + (seededRandom(seed++) - 0.5) * 0.08;
+    const pluggedInCount = Math.round(
+      FLEET_SIZE * pluggedInRatio * plugInNoise
+    );
+
+    const avgSoC = avgSoCForHour(hour, isWeekend);
+    const socNoise = (seededRandom(seed++) - 0.5) * 4;
+    const soc = Math.min(
+      MAX_SOC,
+      Math.max(MIN_SOC_BUFFER + 5, avgSoC + socNoise)
+    );
+
+    const upHeadroomKwh = Math.round(
+      ((soc - MIN_SOC_BUFFER) / 100) * pluggedInCount * AVG_BATTERY_KWH
+    );
+    const downHeadroomKwh = Math.round(
+      ((MAX_SOC - soc) / 100) * pluggedInCount * AVG_BATTERY_KWH
+    );
+
+    blocks.push({
+      timestamp: new Date(current),
+      avgSoCPct: Math.round(soc * 10) / 10,
+      pluggedInCount,
+      upHeadroomKwh: Math.max(0, upHeadroomKwh),
+      downHeadroomKwh: Math.max(0, downHeadroomKwh),
+    });
+
+    current = addMinutes(current, 15);
+  }
+  return blocks;
 }
 
 export function generateHistoricLoad(daysBack: number): TimeBlock[] {
@@ -346,30 +530,119 @@ export function generateBasePriceCurve(date: Date): PriceBlock[] {
   return blocks;
 }
 
-export function formatBlockTime(date: Date): string {
-  return format(date, 'HH:mm');
+export function generatePriceReference(date: Date): PriceReferenceBlock[] {
+  const blocks: PriceReferenceBlock[] = [];
+  let current = startOfDay(date);
+  let seed = date.getTime() % 5555;
+  const now = new Date();
+
+  const month = date.getMonth();
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+
+  for (let i = 0; i < 96; i++) {
+    const hour = current.getHours();
+    const isForecast = current > now;
+
+    const daBase = basePriceForHour(hour, month, isWeekend);
+    const daNoise =
+      1 + (seededRandom(seed++) - 0.5) * (isForecast ? 0.18 : 0.1);
+    const daSpot = Math.max(-100, daBase * daNoise);
+
+    // ID forecast: DA ± 8–12% spread
+    const idSpread = (seededRandom(seed++) - 0.5) * (isForecast ? 0.24 : 0.16);
+    const idForecast = daSpot * (1 + idSpread);
+
+    // mFRR reference: DA + €15–35/MWh capacity premium
+    const mfrrPremium = 15 + seededRandom(seed++) * 20;
+    const mfrrRef = daSpot + mfrrPremium;
+
+    blocks.push({
+      timestamp: new Date(current),
+      daSpotEurMwh: Math.round(daSpot * 10) / 10,
+      idForecastEurMwh: Math.round(idForecast * 10) / 10,
+      mfrrRefEurMwh: Math.round(mfrrRef * 10) / 10,
+      isForecast,
+    });
+
+    current = addMinutes(current, 15);
+  }
+  return blocks;
 }
 
-export interface ActivationRecord {
-  id: string;
-  timestamp: Date;
-  type: 'price-curve' | 'mfrr';
-  direction: 'up' | 'down' | null;
-  requestedKw: number | null;
-  deliveredKw: number | null;
-  durationMin: number;
-  baselineKwh: number;
-  actualKwh: number;
-  shiftedKwh: number;
-  revenueEur: number;
-  blocks: Array<{
-    timestamp: Date;
-    baselineKwh: number;
-    actualKwh: number;
-    deltaKwh: number;
-    priceEurMwh: number;
-    valueEur: number;
-  }>;
+interface ProductDefaults {
+  typicalWindow: [number, number]; // hour range [start, end)
+  capacityPriceRange: [number, number]; // €/MW/h
+  energyPriceRange: [number, number]; // €/MWh
+  typicalMw: number;
+}
+
+const PRODUCT_DEFAULTS: Record<FlexProduct, ProductDefaults> = {
+  fcr: {
+    typicalWindow: [0, 24],
+    capacityPriceRange: [8, 15],
+    energyPriceRange: [0, 0],
+    typicalMw: 0.5,
+  },
+  afrr: {
+    typicalWindow: [6, 22],
+    capacityPriceRange: [5, 10],
+    energyPriceRange: [30, 80],
+    typicalMw: 1.0,
+  },
+  mfrr: {
+    typicalWindow: [6, 22],
+    capacityPriceRange: [3, 8],
+    energyPriceRange: [60, 120],
+    typicalMw: 1.5,
+  },
+  'id-balancing': {
+    typicalWindow: [8, 20],
+    capacityPriceRange: [2, 5],
+    energyPriceRange: [40, 90],
+    typicalMw: 0.8,
+  },
+};
+
+export function generateBidTimeline(date: Date): BidBlock[] {
+  const blocks: BidBlock[] = [];
+  let seed = date.getTime() % 3333;
+
+  const products: FlexProduct[] = ['mfrr', 'id-balancing'];
+  if (seededRandom(seed++) > 0.4) products.push('fcr');
+  if (seededRandom(seed++) > 0.5) products.push('afrr');
+
+  for (const product of products) {
+    const defaults = PRODUCT_DEFAULTS[product];
+    let current = startOfDay(date);
+    const [windowStart, windowEnd] = defaults.typicalWindow;
+
+    const actualStart = windowStart + Math.floor(seededRandom(seed++) * 2);
+    const actualEnd = windowEnd - Math.floor(seededRandom(seed++) * 2);
+    const reservedMw = defaults.typicalMw * (0.8 + seededRandom(seed++) * 0.4);
+    const [capMin, capMax] = defaults.capacityPriceRange;
+    const capacityPrice = capMin + seededRandom(seed++) * (capMax - capMin);
+    const [enMin, enMax] = defaults.energyPriceRange;
+    const energyPrice = enMin + seededRandom(seed++) * (enMax - enMin);
+
+    for (let i = 0; i < 96; i++) {
+      const hour = current.getHours();
+      const isAvailable = hour >= actualStart && hour < actualEnd;
+      blocks.push({
+        timestamp: new Date(current),
+        product,
+        reservedMw: Math.round(reservedMw * 100) / 100,
+        capacityPriceEurMwH: Math.round(capacityPrice * 100) / 100,
+        energyPriceEurMwh: Math.round(energyPrice * 100) / 100,
+        isAvailable,
+      });
+      current = addMinutes(current, 15);
+    }
+  }
+  return blocks;
+}
+
+export function formatBlockTime(date: Date): string {
+  return format(date, 'HH:mm');
 }
 
 export interface MarketSplitStats {
@@ -414,6 +687,7 @@ export function generateActivationHistory(
   for (let d = daysBack; d >= 0; d--) {
     const day = subDays(now, d);
     const count = 2 + Math.floor(seededRandom(seed++) * 3);
+
     for (let i = 0; i < count; i++) {
       const hour = 6 + Math.floor(seededRandom(seed++) * 16);
       const ts = new Date(day);
@@ -421,54 +695,91 @@ export function generateActivationHistory(
       if (ts > now) continue;
 
       const isMfrr = seededRandom(seed++) > 0.5;
+      const product: FlexProduct = isMfrr ? 'mfrr' : 'id-balancing';
       const direction: 'up' | 'down' =
-        seededRandom(seed++) > 0.5 ? 'down' : 'up';
+        seededRandom(seed++) > 0.5 ? 'up' : 'down';
       const durationMin = isMfrr
         ? 30
         : 60 + Math.floor(seededRandom(seed++) * 120);
       const numBlocks = Math.round(durationMin / 15);
       const baselinePerBlock = 60 + seededRandom(seed++) * 80;
-      const shiftRatio =
-        (0.3 + seededRandom(seed++) * 0.4) * (direction === 'down' ? -1 : 1);
-      const price = 40 + seededRandom(seed++) * 60;
 
-      const blockData = Array.from({ length: numBlocks }, (_, bi) => {
-        const bts = new Date(ts.getTime() + bi * 15 * 60000);
-        const baseline =
-          baselinePerBlock * (1 + (seededRandom(seed++) - 0.5) * 0.2);
-        const delta = baseline * shiftRatio;
-        const actual = Math.max(0, baseline + delta);
-        const value = Math.abs(delta) * (price / 1000) * (isMfrr ? 2.5 : 1);
-        return {
-          timestamp: bts,
-          baselineKwh: baseline,
-          actualKwh: actual,
-          deltaKwh: delta,
-          priceEurMwh: price,
-          valueEur: value,
-        };
-      });
+      // shiftRatio sign MUST match direction: up → reduce load → negative, down → increase → positive
+      const shiftMagnitude = 0.25 + seededRandom(seed++) * 0.35;
+      const shiftRatio = direction === 'up' ? -shiftMagnitude : shiftMagnitude;
+
+      // Bid economics
+      const reservedMw = isMfrr ? 1 + seededRandom(seed++) * 1.5 : 0;
+      const capacityPriceEurMwH = isMfrr ? 4 + seededRandom(seed++) * 4 : 0;
+      const energyBidPrice = isMfrr
+        ? 60 + seededRandom(seed++) * 60
+        : 40 + seededRandom(seed++) * 40;
+      const imbalancePriceEurMwh = 80;
+
+      // Delivery rate: 85-100%
+      const deliveryRate = 0.85 + seededRandom(seed++) * 0.15;
+      const requestedKw = isMfrr ? Math.round(reservedMw * 1000) : null;
+      const deliveredKw = isMfrr
+        ? Math.round(requestedKw! * deliveryRate)
+        : null;
+
+      const blockData: ActivationBlock[] = Array.from(
+        { length: numBlocks },
+        (_, bi) => {
+          const bts = new Date(ts.getTime() + bi * 15 * 60000);
+          const baseline =
+            baselinePerBlock * (1 + (seededRandom(seed++) - 0.5) * 0.2);
+          const delta = baseline * shiftRatio * deliveryRate;
+          const actual = Math.max(0, baseline + delta);
+
+          const capPay = isMfrr
+            ? reservedMw * capacityPriceEurMwH * (15 / 60)
+            : 0;
+          const energyPay = (energyBidPrice * Math.abs(delta)) / 1000;
+          const undeliveredKwh =
+            deliveryRate < 0.95
+              ? Math.abs(baseline * shiftRatio) * (1 - deliveryRate)
+              : 0;
+          const imbalanceCost = (imbalancePriceEurMwh * undeliveredKwh) / 1000;
+
+          return {
+            timestamp: bts,
+            baselineKwh: baseline,
+            actualKwh: actual,
+            deltaKwh: delta,
+            priceEurMwh: energyBidPrice,
+            capacityPaymentEur: capPay,
+            energyPaymentEur: energyPay,
+            imbalanceCostEur: imbalanceCost,
+            valueEur: capPay + energyPay - imbalanceCost,
+          };
+        }
+      );
 
       const totalBaseline = blockData.reduce((s, b) => s + b.baselineKwh, 0);
       const totalActual = blockData.reduce((s, b) => s + b.actualKwh, 0);
-      const totalRevenue = blockData.reduce((s, b) => s + b.valueEur, 0);
+      const totalCap = blockData.reduce((s, b) => s + b.capacityPaymentEur, 0);
+      const totalEnergy = blockData.reduce((s, b) => s + b.energyPaymentEur, 0);
+      const totalImbalance = blockData.reduce(
+        (s, b) => s + b.imbalanceCostEur,
+        0
+      );
 
       records.push({
         id: `act_${d}_${i}`,
         timestamp: ts,
-        type: isMfrr ? 'mfrr' : 'price-curve',
+        product,
         direction: isMfrr ? direction : null,
-        requestedKw: isMfrr
-          ? 1000 + Math.round(seededRandom(seed++) * 1500)
-          : null,
-        deliveredKw: isMfrr
-          ? Math.round((1000 + seededRandom(seed++) * 1500) * 0.85)
-          : null,
+        requestedKw,
+        deliveredKw,
         durationMin,
         baselineKwh: totalBaseline,
         actualKwh: totalActual,
         shiftedKwh: totalActual - totalBaseline,
-        revenueEur: totalRevenue,
+        capacityPaymentEur: totalCap,
+        energyPaymentEur: totalEnergy,
+        imbalanceCostEur: totalImbalance,
+        revenueEur: totalCap + totalEnergy - totalImbalance,
         blocks: blockData,
       });
     }

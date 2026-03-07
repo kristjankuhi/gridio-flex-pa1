@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState } from 'react';
 
 interface Settings {
-  mfrrEnabled: boolean;
+  flex2Enabled: boolean;
   showForecast: boolean;
   realtimeSimulation: boolean;
 }
 
 const DEFAULTS: Settings = {
-  mfrrEnabled: false,
+  flex2Enabled: false,
   showForecast: true,
   realtimeSimulation: true,
 };

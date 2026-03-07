@@ -1,5 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, isToday, isBefore, startOfDay, addDays } from 'date-fns';
+import {
+  ComposedChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
@@ -10,9 +19,11 @@ import { Button } from '@/components/ui/button';
 import { PriceTable } from '@/components/PriceTable';
 import { SimulationChart } from '@/components/SimulationChart';
 import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
+import { BidTimeline } from '@/components/BidTimeline';
 import { usePriceTableState } from '@/hooks/usePriceTableState';
 import { api } from '@/api/client';
-import type { SimulationResult } from '@/types';
+import { useSettings } from '@/store/settingsStore';
+import type { SimulationResult, PriceReferenceBlock, BidBlock } from '@/types';
 
 export function PriceEditor() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -21,8 +32,52 @@ export function PriceEditor() {
     useState<SimulationResult | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const { settings } = useSettings();
+  const [refPrices, setRefPrices] = useState<PriceReferenceBlock[]>([]);
+  const [bidBlocks, setBidBlocks] = useState<BidBlock[]>([]);
+  const [showDA, setShowDA] = useState(true);
+  const [showID, setShowID] = useState(false);
+  const [showMFRR, setShowMFRR] = useState(false);
+
   const { rows, setInput, clearInputs, getEditedBlocks, hasChanges } =
     usePriceTableState(selectedDate);
+
+  useEffect(() => {
+    if (!settings.flex2Enabled) return;
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    api.bids
+      .get(dateStr)
+      .then((blocks) =>
+        setBidBlocks(
+          blocks.map((b) => ({
+            ...b,
+            timestamp: new Date(b.timestamp as unknown as string),
+          }))
+        )
+      )
+      .catch(console.error);
+  }, [selectedDate, settings.flex2Enabled]);
+
+  async function handleSaveBids(blocks: BidBlock[]) {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    await api.bids.save(dateStr, blocks);
+  }
+
+  useEffect(() => {
+    if (settings.flex2Enabled) return; // Flex 2.0 mode uses bid manager instead
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    api.market
+      .referencePrices(dateStr)
+      .then((blocks) =>
+        setRefPrices(
+          blocks.map((b) => ({
+            ...b,
+            timestamp: new Date(b.timestamp as unknown as string),
+          }))
+        )
+      )
+      .catch(console.error);
+  }, [selectedDate, settings.flex2Enabled]);
 
   function handlePaste(startIndex: number, text: string) {
     const lines = text.trim().split('\n').filter(Boolean);
@@ -89,9 +144,13 @@ export function PriceEditor() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold mb-1">Price Editor</h1>
+        <h1 className="text-xl font-semibold mb-1">
+          {settings.flex2Enabled ? 'Bid Manager' : 'Price Curve'}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Adjust the price curve to shift EV charging load
+          {settings.flex2Enabled
+            ? 'Submit availability windows and bid prices for grid balancing products'
+            : 'Adjust the price curve to shift EV charging load'}
         </p>
       </div>
 
@@ -159,52 +218,136 @@ export function PriceEditor() {
         </Button>
       </div>
 
-      <PriceTable rows={rows} onInputChange={setInput} onPaste={handlePaste} />
-
-      <div className="space-y-6">
-        <div className="flex items-center justify-between border-t border-border pt-6">
-          <Button
-            variant="ghost"
-            onClick={handleDiscard}
-            disabled={!hasChanges && !simulationResult}
-          >
-            Discard changes
-          </Button>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => void handleSimulate()}
-              disabled={!hasChanges}
-            >
-              Simulate →
-            </Button>
-            <Button
-              onClick={() => void handleSave()}
-              disabled={!hasChanges}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              Save & Activate
-            </Button>
-          </div>
-        </div>
-
-        {simulationResult && (
-          <div className="bg-card border border-border rounded-lg p-6">
-            <SimulationChart result={simulationResult} />
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
-              <Button variant="ghost" onClick={handleDiscard}>
-                Discard
-              </Button>
-              <Button
-                onClick={() => void handleSave()}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Save & Activate
-              </Button>
+      {!settings.flex2Enabled && refPrices.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-medium">Market Reference Prices</h3>
+              <p className="text-xs text-muted-foreground">
+                Reference context for setting your price curve
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {(
+                [
+                  {
+                    key: 'da',
+                    label: 'DA Spot',
+                    show: showDA,
+                    set: setShowDA,
+                    color: '#f59e0b',
+                  },
+                  {
+                    key: 'id',
+                    label: 'ID Forecast',
+                    show: showID,
+                    set: setShowID,
+                    color: '#60a5fa',
+                  },
+                  {
+                    key: 'mfrr',
+                    label: 'mFRR Ref',
+                    show: showMFRR,
+                    set: setShowMFRR,
+                    color: '#a78bfa',
+                  },
+                ] satisfies {
+                  key: string;
+                  label: string;
+                  show: boolean;
+                  set: (v: boolean) => void;
+                  color: string;
+                }[]
+              ).map(({ key, label, show, set, color }) => (
+                <button
+                  key={key}
+                  onClick={() => set(!show)}
+                  className={`px-2 py-1 text-xs rounded border transition-colors ${
+                    show
+                      ? 'border-current'
+                      : 'border-border text-muted-foreground'
+                  }`}
+                  style={show ? { color, borderColor: color } : undefined}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
-        )}
-      </div>
+          <ReferenceOverlayChart
+            blocks={refPrices}
+            showDA={showDA}
+            showID={showID}
+            showMFRR={showMFRR}
+          />
+        </div>
+      )}
+
+      {settings.flex2Enabled ? (
+        bidBlocks.length > 0 ? (
+          <BidTimeline
+            blocks={bidBlocks}
+            onSave={(b) => void handleSaveBids(b)}
+          />
+        ) : (
+          <div className="text-sm text-muted-foreground py-8 text-center">
+            Loading bid timeline…
+          </div>
+        )
+      ) : (
+        <>
+          <PriceTable
+            rows={rows}
+            onInputChange={setInput}
+            onPaste={handlePaste}
+          />
+
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-t border-border pt-6">
+              <Button
+                variant="ghost"
+                onClick={handleDiscard}
+                disabled={!hasChanges && !simulationResult}
+              >
+                Discard changes
+              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => void handleSimulate()}
+                  disabled={!hasChanges}
+                >
+                  Simulate →
+                </Button>
+                <Button
+                  onClick={() => void handleSave()}
+                  disabled={!hasChanges}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Save & Activate
+                </Button>
+              </div>
+            </div>
+
+            {simulationResult && (
+              <div className="bg-card border border-border rounded-lg p-6">
+                <SimulationChart result={simulationResult} />
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
+                  <Button variant="ghost" onClick={handleDiscard}>
+                    Discard
+                  </Button>
+                  <Button
+                    onClick={() => void handleSave()}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Save & Activate
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <VersionHistoryPanel
         open={historyOpen}
@@ -212,6 +355,103 @@ export function PriceEditor() {
         onClose={() => setHistoryOpen(false)}
         onRestore={() => {}}
       />
+    </div>
+  );
+}
+
+interface ReferenceOverlayChartProps {
+  blocks: PriceReferenceBlock[];
+  showDA: boolean;
+  showID: boolean;
+  showMFRR: boolean;
+}
+
+function ReferenceOverlayChart({
+  blocks,
+  showDA,
+  showID,
+  showMFRR,
+}: ReferenceOverlayChartProps) {
+  const data = blocks.map((b) => ({
+    label: format(b.timestamp, 'HH:mm'),
+    da: b.daSpotEurMwh,
+    id: b.idForecastEurMwh,
+    mfrr: b.mfrrRefEurMwh,
+  }));
+
+  return (
+    <div className="h-40 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart
+          data={data}
+          margin={{ top: 4, right: 8, bottom: 0, left: 8 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="hsl(222 47% 18%)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 10, fill: '#64748b' }}
+            tickLine={false}
+            axisLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#64748b' }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v: number) => `€${v}`}
+            width={48}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'hsl(222 47% 10%)',
+              border: '1px solid hsl(222 47% 18%)',
+              borderRadius: '6px',
+              fontSize: '11px',
+              color: '#e2e8f0',
+            }}
+            itemStyle={{ color: '#e2e8f0' }}
+          />
+          {showDA && (
+            <Line
+              type="monotone"
+              dataKey="da"
+              name="DA Spot"
+              stroke="#f59e0b"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls
+            />
+          )}
+          {showID && (
+            <Line
+              type="monotone"
+              dataKey="id"
+              name="ID Forecast"
+              stroke="#60a5fa"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              dot={false}
+              connectNulls
+            />
+          )}
+          {showMFRR && (
+            <Line
+              type="monotone"
+              dataKey="mfrr"
+              name="mFRR Ref"
+              stroke="#a78bfa"
+              strokeWidth={1.5}
+              strokeDasharray="2 4"
+              dot={false}
+              connectNulls
+            />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }

@@ -68,11 +68,10 @@ export function SettingsPanel() {
         </SheetHeader>
         <div className="mt-6">
           <ToggleRow
-            label="mFRR Features"
-            description="Show mFRR stat cards, revenue tracking and activation controls across the UI"
-            badge="Flex 2.0"
-            value={settings.mfrrEnabled}
-            onChange={(v) => update({ mfrrEnabled: v })}
+            label="Flex 2.0"
+            description="Show Flex 2.0 stat cards, revenue tracking and activation controls across the UI"
+            value={settings.flex2Enabled}
+            onChange={(v) => update({ flex2Enabled: v })}
           />
           <ToggleRow
             label="Show Forecast"

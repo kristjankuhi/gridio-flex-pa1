@@ -3,8 +3,11 @@ import type {
   TimeBlock,
   PriceBlock,
   PriceCurveVersion,
+  PriceReferenceBlock,
   SimulationResult,
   TimeWindow,
+  SoCBlock,
+  BidBlock,
 } from '@/types';
 
 const BASE = 'http://localhost:3000/api/v1';
@@ -35,6 +38,7 @@ export const api = {
       simulatedNow: string;
       blocks: TimeBlock[];
     }> => get(`/fleet/load?window=${window}`),
+    soc: (date: string): Promise<SoCBlock[]> => get(`/fleet/soc?date=${date}`),
   },
   priceCurve: {
     get: (date: string): Promise<PriceBlock[]> =>
@@ -52,5 +56,17 @@ export const api = {
       newPriceBlocks: PriceBlock[]
     ): Promise<SimulationResult> =>
       post('/simulation/run', { date, newPriceBlocks }),
+  },
+  market: {
+    referencePrices: (date: string): Promise<PriceReferenceBlock[]> =>
+      get(`/market/reference-prices?date=${date}`),
+  },
+  bids: {
+    get: (date: string): Promise<BidBlock[]> => get(`/bids?date=${date}`),
+    save: (
+      date: string,
+      blocks: BidBlock[]
+    ): Promise<{ id: string; date: string; savedAt: string }> =>
+      post('/bids', { date, blocks }),
   },
 };

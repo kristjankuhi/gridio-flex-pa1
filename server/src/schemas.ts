@@ -14,8 +14,27 @@ export const FleetStatsSchema = z
       .min(0)
       .max(100)
       .describe('Average SoC across active EVs (%)'),
+    upHeadroomKw: z.number().describe('Up-regulation headroom (kW)'),
+    downHeadroomKw: z.number().describe('Down-regulation headroom (kW)'),
   })
   .openapi('FleetStats');
+
+export const SoCBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    avgSoCPct: z.number().min(0).max(100).describe('Fleet average SoC (%)'),
+    pluggedInCount: z.number().int().describe('EVs currently plugged in'),
+    upHeadroomKwh: z
+      .number()
+      .describe('Energy available for up-regulation (kWh)'),
+    downHeadroomKwh: z
+      .number()
+      .describe('Energy available for down-regulation (kWh)'),
+  })
+  .openapi('SoCBlock');
 
 export const TimeBlockSchema = z
   .object({
@@ -100,8 +119,60 @@ export const SimulationResultSchema = z
   })
   .openapi('SimulationResult');
 
+export const PriceReferenceBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    daSpotEurMwh: z
+      .number()
+      .describe(
+        'DA spot price (real when available, forecast otherwise) in EUR/MWh'
+      ),
+    idForecastEurMwh: z
+      .number()
+      .describe('Intraday forecast price (DA ± spread) in EUR/MWh'),
+    mfrrRefEurMwh: z
+      .number()
+      .describe('mFRR reference price (DA + capacity premium) in EUR/MWh'),
+    isForecast: z.boolean().describe('True when this block is in the future'),
+  })
+  .openapi('PriceReferenceBlock');
+
 export const ErrorSchema = z
   .object({
     error: z.string(),
   })
   .openapi('Error');
+
+export const FlexProductSchema = z
+  .enum(['fcr', 'afrr', 'mfrr', 'id-balancing'])
+  .openapi('FlexProduct');
+
+export const BidBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    product: FlexProductSchema,
+    reservedMw: z.number().min(0).describe('Reserved capacity in MW'),
+    capacityPriceEurMwH: z
+      .number()
+      .min(0)
+      .describe('Bid price for availability in EUR/MW/h'),
+    energyPriceEurMwh: z
+      .number()
+      .min(0)
+      .describe('Bid price for activation energy in EUR/MWh'),
+    isAvailable: z.boolean().describe('Whether this slot is marked available'),
+  })
+  .openapi('BidBlock');
+
+export const SaveBidsBodySchema = z
+  .object({
+    date: z.string().date().describe('Date for the bid timeline (YYYY-MM-DD)'),
+    blocks: z.array(BidBlockSchema).describe('Full bid timeline blocks'),
+  })
+  .openapi('SaveBidsBody');

@@ -49,7 +49,18 @@ Key concepts relevant to this codebase:
 - **System Services**: Ancillary services (e.g., frequency containment reserve, fast frequency response) procured by grid operators.
 - **Aggregator**: Gridio's role — aggregating many small EV assets into a dispatchable resource large enough to participate in flexibility markets.
 - **DA market**: Day-Ahead market — prices published ~12:45 CET for the next full day (Nord Pool / EPEX). The "known price horizon" is today midnight before 13:00 CET, tomorrow midnight after 13:00.
-- **mFRR**: Manual Frequency Restoration Reserve — a balancing product (Flex 2.0 feature, toggled in Settings).
+- **mFRR**: Manual Frequency Restoration Reserve — one of the Flex 2.0 grid balancing products. TSO-dispatched, 12.5+ min response time.
+- **Flex 1.0**: Artificial price curve sent to EV chargers. The trader sets internal prices to embed signals from DA spot, intraday, and mFRR windows. EVs shift charging toward low-price blocks. No TSO activation. Active when `flex2Enabled = false` in Settings.
+- **Flex 2.0**: TSO-dispatched grid balancing. Trader submits capacity bids (MW, capacity price, energy price, availability window) per product. Settlement: capacity payment + energy payment − imbalance costs. Active when `flex2Enabled = true` in Settings.
+- **FlexProduct**: `'fcr' | 'afrr' | 'mfrr' | 'id-balancing'` — universal product type for Flex 2.0 bids.
+- **FCR**: Frequency Containment Reserve — symmetric, continuous, seconds-scale response.
+- **aFRR**: Automatic Frequency Restoration Reserve — responds to AGC signal, minutes-scale.
+- **ID balancing**: Intraday balancing product — opportunistic, shorter windows.
+- **Capacity payment**: Fee for being available (€/MW/h × reserved MW × hours). Separate from energy payment.
+- **Energy payment**: Fee for actual activation (€/MWh × activated MWh).
+- **Imbalance cost**: Penalty for under-delivery (imbalance price × undelivered MWh).
+- **Baseline**: Counterfactual load without activation. Direction convention: up activation → shiftedKwh < 0 (load reduced); down activation → shiftedKwh > 0 (load increased).
+- **SoC headroom**: Up headroom = (avgSoC − 20%) × fleet capacity. Down headroom = (95% − avgSoC) × fleet capacity. Min buffer 20%, max 95%.
 
 ## Workflow
 
@@ -69,18 +80,26 @@ app_workspace/
 │       ├── routes/
 │       │   ├── fleet.ts              # GET /fleet/stats, GET /fleet/load
 │       │   ├── priceCurve.ts         # GET/POST /price-curve, versioning
-│       │   └── simulation.ts         # POST /simulation/run
+│       │   ├── simulation.ts         # POST /simulation/run
+│       │   ├── bids.ts               # GET/POST /bids — Flex 2.0 bid timeline
+│       │   ├── marketPrices.ts       # GET /market/reference-prices
+│       │   └── soc.ts                # GET /fleet/soc
 │       ├── services/
 │       │   ├── priceService.ts       # Fetches real Belgian DA prices (energy-charts.info)
 │       │   └── simulationClock.ts    # Server-side simulation clock (15-min ticks)
 │       ├── schemas.ts                # Zod/OpenAPI schemas
-│       └── store/                    # In-memory price curve version store
+│       └── store/
+│           ├── bidStore.ts           # In-memory bid timeline store
+│           └── priceCurveStore.ts    # In-memory price curve version store
 ├── src/
 │   ├── api/
 │   │   └── client.ts                 # Typed REST API client
 │   ├── components/
 │   │   ├── ui/                       # shadcn/ui primitives
 │   │   ├── ActivationTable.tsx       # Settlement activation log
+│   │   ├── BidSummaryStrip.tsx       # Active bid chips per product (Flex 2.0 Dashboard)
+│   │   ├── BidTimeline.tsx           # 24h drag-to-draw bid availability canvas (Flex 2.0)
+│   │   ├── SoCChart.tsx              # Fleet SoC curve + up/down headroom areas
 │   │   ├── FleetChart.tsx            # Main fleet load + price ComposedChart
 │   │   ├── FlexibilityImpact.tsx     # KPI strip + delta bar chart
 │   │   ├── Layout.tsx                # App shell
@@ -144,5 +163,32 @@ app_workspace/
 
 ### Settings (`src/store/settingsStore.tsx`)
 
-- Three toggles persisted to `localStorage` under `'gridio-flex-settings'`: `mfrrEnabled`, `showForecast`, `realtimeSimulation`.
+- Three toggles persisted to `localStorage` under `'gridio-flex-settings'`: `flex2Enabled` (renamed from `mfrrEnabled` — toggles between Flex 1.0 (price curve, `false`) and Flex 2.0 (grid balancing products, `true`)), `showForecast`, `realtimeSimulation`.
 - Wrap the app in `<SettingsProvider>` (done in `App.tsx`); consume with `useSettings()`.
+
+### SoC dynamics (`src/data/generators.ts`)
+
+- `generateSoCCurve(date)` returns 96 × 15-min blocks with `avgSoCPct`, `pluggedInCount`, `upHeadroomKwh`, `downHeadroomKwh`.
+- Plug-in rate peaks overnight (~85%), dips midday (~40%). SoC follows inverse pattern.
+- Min buffer 20%, max 95%. Up headroom = (SoC − 20%) × count × avgBattery; down headroom = (95% − SoC) × count × avgBattery.
+
+### Flex 1.0 price reference overlays
+
+- `generatePriceReference(date)` returns DA spot (real from cache or generated), ID forecast (DA ± 8–12%), mFRR reference (DA + €15–35/MWh). `isForecast: true` for future blocks.
+- Three toggleable overlay lines in Price Editor: DA Spot (amber/solid), ID Forecast (blue/dashed), mFRR Ref (violet/dotted).
+
+### Flex 2.0 bid management
+
+- `generateBidTimeline(date)` generates default bids for mFRR + ID balancing (always) + FCR + aFRR (conditional on date seed).
+- BidTimeline component: 24h × 4-product drag-to-draw grid. Click+drag marks availability slots. Click filled slot → popover to edit MW and bid prices.
+- Bids stored in server-side `bidStore.ts` (in-memory, same pattern as priceCurveStore).
+
+### FleetChart kW/kWh fix
+
+- `CAPACITY_KWH_PER_BLOCK = 820` (3280 kW × 15 min). Reference line shown only in 1D view.
+
+### ActivationRecord direction convention
+
+- `direction === 'up'` → load reduced → `shiftedKwh < 0` → emerald color in UI.
+- `direction === 'down'` → load increased → `shiftedKwh > 0` → amber color in UI.
+- Revenue = `capacityPaymentEur + energyPaymentEur − imbalanceCostEur`.
