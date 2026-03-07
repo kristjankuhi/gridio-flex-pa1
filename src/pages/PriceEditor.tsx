@@ -201,9 +201,9 @@ export function PriceEditor() {
 
         <div className="flex items-center gap-0.5">
           {[
-            { label: 'Today', date: new Date() },
-            { label: 'Tmrw', date: addDays(new Date(), 1) },
-            { label: '+2d', date: addDays(new Date(), 2) },
+            { label: 'D', date: new Date() },
+            { label: 'D+1', date: addDays(new Date(), 1) },
+            { label: 'D+2', date: addDays(new Date(), 2) },
           ].map(({ label, date }) => {
             const active =
               startOfDay(selectedDate).getTime() === startOfDay(date).getTime();
