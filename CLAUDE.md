@@ -102,6 +102,7 @@ app_workspace/
 │   │   ├── SoCChart.tsx              # Fleet SoC curve + up/down headroom areas
 │   │   ├── FleetChart.tsx            # Main fleet load + price ComposedChart
 │   │   ├── FlexibilityImpact.tsx     # KPI strip + delta bar chart
+│   │   ├── LoadShiftChart.tsx        # Settlement DA shift bar chart (Flex 1.0)
 │   │   ├── Layout.tsx                # App shell
 │   │   ├── PeriodSelector.tsx        # 1D/1W/1M/1Y navigation
 │   │   ├── PriceTable.tsx            # 96-row editable price table
@@ -192,3 +193,13 @@ app_workspace/
 - `direction === 'up'` → load reduced → `shiftedKwh < 0` → emerald color in UI.
 - `direction === 'down'` → load increased → `shiftedKwh > 0` → amber color in UI.
 - Revenue = `capacityPaymentEur + energyPaymentEur − imbalanceCostEur`.
+
+### DA load shift visualisation (`src/data/generators.ts` + `src/components/LoadShiftChart.tsx`)
+
+- `generateLoadProfile(daysBack, applyPriceShift)` — internal helper. When `applyPriceShift=true`, flexible kWh is multiplied by a price-shift factor `(refPrice / effectivePrice)^0.45` clamped to [0.35, 1.9]. `refPrice` = midday DA price (hour 12) for the current month/day type.
+- `generateHistoricLoad(daysBack)` — calls `generateLoadProfile(daysBack, true)` (Gridio-managed, price-shifted).
+- `generateBaselineLoad(daysBack)` — calls `generateLoadProfile(daysBack, false)` (uncontrolled, plug-in-proportional).
+- `generateLoadShiftBlocks(daysBack)` — pairs baseline + managed, returns `LoadShiftBlock[]` with `deltaKwh`, `daSpotEurMwh`, `savingsEur`.
+- **FleetChart**: `showBaseline` prop renders a grey dashed "Uncontrolled baseline" line in 1D Flex 1.0 view only.
+- **LoadShiftChart**: bars above zero = load added, below zero = load removed. Emerald = economically correct, amber = suboptimal. DA price line on right axis.
+- **Settlement Flex 1.0 KPIs**: Baseline Cost / Actual Cost / DA Savings / Savings Rate — derived from `generateLoadShiftBlocks(365)` filtered to selected range.
