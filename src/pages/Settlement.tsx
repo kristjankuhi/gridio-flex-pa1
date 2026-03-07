@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { ActivationTable } from '@/components/ActivationTable';
@@ -7,6 +7,8 @@ import {
   generateActivationHistory,
   generateLoadShiftBlocks,
 } from '@/data/generators';
+import { api } from '@/api/client';
+import { format, subDays } from 'date-fns';
 import { LoadShiftChart } from '@/components/LoadShiftChart';
 import type { ActivationRecord, LoadShiftBlock } from '@/types';
 import { useSettings } from '@/store/settingsStore';
@@ -51,7 +53,34 @@ export function Settlement() {
     isAtPresent,
   } = usePeriodSelector('1W');
 
-  const allActivations = useMemo(() => generateActivationHistory(365), []);
+  const [imbalanceLookup, setImbalanceLookup] = useState<Map<number, number>>(
+    () => new Map()
+  );
+
+  useEffect(() => {
+    const start = format(subDays(new Date(), 365), 'yyyy-MM-dd');
+    const end = format(new Date(), 'yyyy-MM-dd');
+    api.market
+      .imbalancePrices(start, end)
+      .then((blocks) => {
+        const map = new Map<number, number>();
+        blocks.forEach((b) => {
+          map.set(new Date(b.timestamp).getTime(), b.imbalancePriceEurMwh);
+        });
+        setImbalanceLookup(map);
+      })
+      .catch((err) => {
+        console.warn(
+          'Failed to fetch imbalance prices, using default 80 EUR/MWh',
+          err
+        );
+      });
+  }, []);
+
+  const allActivations = useMemo(
+    () => generateActivationHistory(365, imbalanceLookup),
+    [imbalanceLookup]
+  );
   const activations = useMemo(
     () =>
       allActivations.filter(
