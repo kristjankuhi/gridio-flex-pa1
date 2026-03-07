@@ -7,6 +7,7 @@ import type {
   SimulationResult,
   TimeWindow,
   SoCBlock,
+  BidBlock,
 } from '@/types';
 
 const BASE = 'http://localhost:3000/api/v1';
@@ -59,5 +60,13 @@ export const api = {
   market: {
     referencePrices: (date: string): Promise<PriceReferenceBlock[]> =>
       get(`/market/reference-prices?date=${date}`),
+  },
+  bids: {
+    get: (date: string): Promise<BidBlock[]> => get(`/bids?date=${date}`),
+    save: (
+      date: string,
+      blocks: BidBlock[]
+    ): Promise<{ id: string; date: string; savedAt: string }> =>
+      post('/bids', { date, blocks }),
   },
 };

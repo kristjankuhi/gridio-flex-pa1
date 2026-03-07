@@ -145,3 +145,34 @@ export const ErrorSchema = z
     error: z.string(),
   })
   .openapi('Error');
+
+export const FlexProductSchema = z
+  .enum(['fcr', 'afrr', 'mfrr', 'id-balancing'])
+  .openapi('FlexProduct');
+
+export const BidBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    product: FlexProductSchema,
+    reservedMw: z.number().min(0).describe('Reserved capacity in MW'),
+    capacityPriceEurMwH: z
+      .number()
+      .min(0)
+      .describe('Bid price for availability in EUR/MW/h'),
+    energyPriceEurMwh: z
+      .number()
+      .min(0)
+      .describe('Bid price for activation energy in EUR/MWh'),
+    isAvailable: z.boolean().describe('Whether this slot is marked available'),
+  })
+  .openapi('BidBlock');
+
+export const SaveBidsBodySchema = z
+  .object({
+    date: z.string().date().describe('Date for the bid timeline (YYYY-MM-DD)'),
+    blocks: z.array(BidBlockSchema).describe('Full bid timeline blocks'),
+  })
+  .openapi('SaveBidsBody');
