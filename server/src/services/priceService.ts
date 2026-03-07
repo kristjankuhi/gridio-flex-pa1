@@ -28,8 +28,9 @@ export async function fetchBelgianPrices(
 }
 
 export async function initPriceCache(): Promise<void> {
-  const to = addDays(new Date(), 2);
-  const from = subYears(to, 2);
+  const now = new Date();
+  const to = addDays(now, 2);
+  const from = subYears(now, 2);
 
   console.log(
     'Fetching 2 years of Belgian DA prices from energy-charts.info...'
