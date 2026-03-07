@@ -12,6 +12,7 @@ import { apiKeysRoutes } from './routes/apiKeys';
 import { settlementRoutes } from './routes/settlement';
 import { mfrrRoutes } from './routes/mfrr';
 import { initPriceCache, scheduleDailyRefresh } from './services/priceService';
+import { initEliaCache, scheduleEliaRefresh } from './services/eliaService';
 import { startSimulationClock } from './services/simulationClock';
 
 const app = new OpenAPIHono();
@@ -51,6 +52,8 @@ console.log(`Swagger UI: http://localhost:${PORT}/api/docs`);
 
 await initPriceCache();
 scheduleDailyRefresh();
+await initEliaCache();
+scheduleEliaRefresh();
 startSimulationClock((now) => {
   console.log(`Sim clock: ${now.toISOString()}`);
 });

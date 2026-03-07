@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
 import { generatePriceReference } from '@/data/generators';
 import { getPriceCacheFor15MinBlock } from '../services/priceService';
+import { getMfrrMarginalPrice } from '../services/eliaService';
 import { PriceReferenceBlockSchema } from '../schemas';
 
 export const marketPricesRoutes = new OpenAPIHono();
@@ -39,11 +40,12 @@ marketPricesRoutes.openapi(
       if (realDA === null) {
         return { ...b, timestamp: b.timestamp.toISOString() };
       }
-      const mfrrPremium = b.mfrrRefEurMwh - b.daSpotEurMwh;
+      const syntheticPremium = b.mfrrRefEurMwh - b.daSpotEurMwh;
+      const realMfrr = getMfrrMarginalPrice(b.timestamp);
       return {
         ...b,
         daSpotEurMwh: realDA,
-        mfrrRefEurMwh: realDA + mfrrPremium,
+        mfrrRefEurMwh: realMfrr ?? realDA + syntheticPremium,
         isForecast: false,
         timestamp: b.timestamp.toISOString(),
       };
