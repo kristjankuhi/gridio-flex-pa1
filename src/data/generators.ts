@@ -764,15 +764,20 @@ export function generateActivationHistory(
         ? 30
         : 60 + Math.floor(seededRandom(seed++) * 120);
       const numBlocks = Math.round(durationMin / 15);
-      const baselinePerBlock = 60 + seededRandom(seed++) * 80;
+
+      // Bid economics (declared before baselinePerBlock — reservedMw needed for mFRR baseline)
+      const reservedMw = isMfrr ? 1 + seededRandom(seed++) * 1.5 : 0;
+      const capacityPriceEurMwH = isMfrr ? 4 + seededRandom(seed++) * 4 : 0;
+
+      // For mFRR: baseline energy must be consistent with the reserved MW capacity.
+      // reservedMw × 1000 kW × 0.25h = kWh per 15-min block. Add ±10% noise.
+      const baselinePerBlock = isMfrr
+        ? reservedMw * 1000 * 0.25 * (1 + (seededRandom(seed++) - 0.5) * 0.2)
+        : 60 + seededRandom(seed++) * 80;
 
       // shiftRatio sign MUST match direction: up → reduce load → negative, down → increase → positive
       const shiftMagnitude = 0.25 + seededRandom(seed++) * 0.35;
       const shiftRatio = direction === 'up' ? -shiftMagnitude : shiftMagnitude;
-
-      // Bid economics
-      const reservedMw = isMfrr ? 1 + seededRandom(seed++) * 1.5 : 0;
-      const capacityPriceEurMwH = isMfrr ? 4 + seededRandom(seed++) * 4 : 0;
       const energyBidPrice = isMfrr
         ? 60 + seededRandom(seed++) * 60
         : 40 + seededRandom(seed++) * 40;
