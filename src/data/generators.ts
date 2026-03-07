@@ -6,6 +6,7 @@ import type {
   FlexProduct,
   ActivationRecord,
   ActivationBlock,
+  SoCBlock,
 } from '../types';
 
 // Seeded pseudo-random for reproducibility in demos
@@ -237,6 +238,165 @@ export function generateFleetStats(): FleetStats {
     upHeadroomKw,
     downHeadroomKw,
   };
+}
+
+const AVG_BATTERY_KWH = 14.7; // 12_450 kWh / 847 EVs
+const FLEET_SIZE = 847;
+const MIN_SOC_BUFFER = 20; // % guaranteed minimum for drivers
+const MAX_SOC = 95; // % practical ceiling
+
+function pluggedInRatioForHour(hour: number, isWeekend: boolean): number {
+  const weekday: Record<number, number> = {
+    0: 0.84,
+    1: 0.86,
+    2: 0.87,
+    3: 0.86,
+    4: 0.83,
+    5: 0.72,
+    6: 0.58,
+    7: 0.45,
+    8: 0.4,
+    9: 0.38,
+    10: 0.38,
+    11: 0.39,
+    12: 0.4,
+    13: 0.41,
+    14: 0.42,
+    15: 0.45,
+    16: 0.52,
+    17: 0.62,
+    18: 0.72,
+    19: 0.78,
+    20: 0.82,
+    21: 0.84,
+    22: 0.85,
+    23: 0.85,
+  };
+  const weekend: Record<number, number> = {
+    0: 0.75,
+    1: 0.76,
+    2: 0.77,
+    3: 0.76,
+    4: 0.74,
+    5: 0.7,
+    6: 0.65,
+    7: 0.58,
+    8: 0.52,
+    9: 0.48,
+    10: 0.46,
+    11: 0.45,
+    12: 0.46,
+    13: 0.47,
+    14: 0.48,
+    15: 0.52,
+    16: 0.58,
+    17: 0.65,
+    18: 0.7,
+    19: 0.74,
+    20: 0.76,
+    21: 0.77,
+    22: 0.76,
+    23: 0.76,
+  };
+  return (isWeekend ? weekend[hour] : weekday[hour]) ?? 0.65;
+}
+
+function avgSoCForHour(hour: number, isWeekend: boolean): number {
+  const weekday: Record<number, number> = {
+    0: 76,
+    1: 80,
+    2: 82,
+    3: 83,
+    4: 82,
+    5: 78,
+    6: 72,
+    7: 64,
+    8: 57,
+    9: 53,
+    10: 51,
+    11: 50,
+    12: 50,
+    13: 51,
+    14: 52,
+    15: 54,
+    16: 57,
+    17: 61,
+    18: 65,
+    19: 68,
+    20: 71,
+    21: 73,
+    22: 75,
+    23: 76,
+  };
+  const weekend: Record<number, number> = {
+    0: 72,
+    1: 75,
+    2: 77,
+    3: 78,
+    4: 77,
+    5: 74,
+    6: 70,
+    7: 65,
+    8: 60,
+    9: 56,
+    10: 54,
+    11: 53,
+    12: 53,
+    13: 54,
+    14: 55,
+    15: 57,
+    16: 60,
+    17: 64,
+    18: 67,
+    19: 70,
+    20: 72,
+    21: 73,
+    22: 73,
+    23: 72,
+  };
+  return (isWeekend ? weekend[hour] : weekday[hour]) ?? 62;
+}
+
+export function generateSoCCurve(date: Date): SoCBlock[] {
+  const blocks: SoCBlock[] = [];
+  let current = startOfDay(date);
+  let seed = date.getTime() % 7777;
+
+  for (let i = 0; i < 96; i++) {
+    const hour = current.getHours();
+    const isWeekend = current.getDay() === 0 || current.getDay() === 6;
+
+    const pluggedInRatio = pluggedInRatioForHour(hour, isWeekend);
+    const plugInNoise = 1 + (seededRandom(seed++) - 0.5) * 0.08;
+    const pluggedInCount = Math.round(
+      FLEET_SIZE * pluggedInRatio * plugInNoise
+    );
+
+    const avgSoC = avgSoCForHour(hour, isWeekend);
+    const socNoise = (seededRandom(seed++) - 0.5) * 4;
+    const soc = Math.min(
+      MAX_SOC,
+      Math.max(MIN_SOC_BUFFER + 5, avgSoC + socNoise)
+    );
+
+    const upHeadroomKwh = Math.round(
+      ((soc - MIN_SOC_BUFFER) / 100) * pluggedInCount * AVG_BATTERY_KWH
+    );
+    const downHeadroomKwh = Math.round(
+      ((MAX_SOC - soc) / 100) * pluggedInCount * AVG_BATTERY_KWH
+    );
+
+    blocks.push({
+      timestamp: new Date(current),
+      avgSoCPct: Math.round(soc * 10) / 10,
+      pluggedInCount,
+      upHeadroomKwh: Math.max(0, upHeadroomKwh),
+      downHeadroomKwh: Math.max(0, downHeadroomKwh),
+    });
+
+    current = addMinutes(current, 15);
+  }
+  return blocks;
 }
 
 export function generateHistoricLoad(daysBack: number): TimeBlock[] {
