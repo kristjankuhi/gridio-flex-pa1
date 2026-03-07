@@ -7,7 +7,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine,
   Cell,
@@ -127,9 +126,32 @@ export function LoadShiftChart({ blocks, timeWindow }: LoadShiftChartProps) {
       <div>
         <h2 className="text-sm font-medium">DA Load Shift</h2>
         <p className="text-xs text-muted-foreground">
-          Bars above zero = load added to this slot · Below zero = load removed
-          · Emerald = economically correct shift · Amber = suboptimal
+          How much load was moved vs the uncontrolled baseline, and whether the
+          shift happened at a cheap or expensive hour
         </p>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block w-3 h-3 rounded-sm"
+            style={{ backgroundColor: EMERALD, opacity: 0.85 }}
+          />
+          Shifted to cheaper hour (saves cost)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block w-3 h-3 rounded-sm"
+            style={{ backgroundColor: AMBER, opacity: 0.85 }}
+          />
+          Shifted to more expensive hour (adds cost)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block w-8 h-px"
+            style={{ backgroundColor: AMBER }}
+          />
+          DA price (€/MWh)
+        </span>
       </div>
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
@@ -185,7 +207,6 @@ export function LoadShiftChart({ blocks, timeWindow }: LoadShiftChartProps) {
                 return [`€${value}`, name ?? ''];
               }}
             />
-            <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
             <ReferenceLine
               yAxisId="delta"
               y={0}
