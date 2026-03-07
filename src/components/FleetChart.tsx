@@ -218,9 +218,7 @@ export function FleetChart({
       <div>
         <h2 className="text-sm font-medium">Fleet Load & Price</h2>
         <p className="text-xs text-muted-foreground">
-          {showBaseline
-            ? 'Managed load vs uncontrolled baseline — grey dashed line is without Gridio'
-            : 'Historic + forecast charging behaviour'}
+          Historic + forecast charging behaviour
         </p>
       </div>
 
