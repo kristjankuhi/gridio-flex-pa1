@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState } from 'react';
+import type { MarketArea } from '@/types';
 
 interface Settings {
   flex2Enabled: boolean;
   showForecast: boolean;
   realtimeSimulation: boolean;
+  marketArea: MarketArea;
 }
 
 const DEFAULTS: Settings = {
   flex2Enabled: false,
   showForecast: true,
   realtimeSimulation: true,
+  marketArea: 'global' as MarketArea,
 };
 
 function loadSettings(): Settings {

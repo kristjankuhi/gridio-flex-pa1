@@ -23,7 +23,10 @@ import type { FleetStats, SoCBlock, BidBlock } from '@/types';
 
 export function Dashboard() {
   const { settings } = useSettings();
-  const [stats, setStats] = useState<FleetStats>(() => generateFleetStats());
+  const { flex2Enabled, marketArea } = settings;
+  const [stats, setStats] = useState<FleetStats>(() =>
+    generateFleetStats(marketArea)
+  );
   const [socBlocks, setSocBlocks] = useState<SoCBlock[]>([]);
   const [bidBlocks, setBidBlocks] = useState<BidBlock[]>([]);
   const {
@@ -42,6 +45,10 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
+    setStats(generateFleetStats(marketArea));
+  }, [marketArea]);
+
+  useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
     api.fleet
       .soc(today)
@@ -57,7 +64,7 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!settings.flex2Enabled) return;
+    if (!flex2Enabled) return;
     const today = format(new Date(), 'yyyy-MM-dd');
     api.bids
       .get(today)
@@ -70,13 +77,16 @@ export function Dashboard() {
         )
       )
       .catch(console.error);
-  }, [settings.flex2Enabled]);
+  }, [flex2Enabled]);
 
-  const marketStats = useMemo(() => generateMarketSplitStats(range), [range]);
+  const marketStats = useMemo(
+    () => generateMarketSplitStats(range, marketArea),
+    [range, marketArea]
+  );
 
   const perEvStats = useMemo(() => {
-    if (settings.flex2Enabled) return null;
-    const allBlocks = generateLoadShiftBlocks(365);
+    if (flex2Enabled) return null;
+    const allBlocks = generateLoadShiftBlocks(365, marketArea);
     const blocks = allBlocks.filter(
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
@@ -96,7 +106,7 @@ export function Dashboard() {
         baselineCost > 0 ? Math.round((savings / baselineCost) * 1000) / 10 : 0,
       activeEvs,
     };
-  }, [settings.flex2Enabled, range]);
+  }, [flex2Enabled, range, marketArea]);
 
   const userValueStats = useMemo(() => {
     const economics = generateUserEconomics(30);
@@ -127,7 +137,7 @@ export function Dashboard() {
   const _now = new Date();
   const _rounded = new Date(_now);
   _rounded.setMinutes(Math.floor(_now.getMinutes() / 15) * 15, 0, 0);
-  const _priceBlocks = generatePriceReference(_now);
+  const _priceBlocks = generatePriceReference(_now, marketArea);
   const _currentBlock = _priceBlocks.find(
     (b) => new Date(b.timestamp).getTime() === _rounded.getTime()
   );
@@ -145,7 +155,7 @@ export function Dashboard() {
 
   const periodStats = useMemo(() => {
     if (timeWindow === '1D') return null; // use API snapshot for 1D
-    const blocks = generateHistoricLoad(365).filter(
+    const blocks = generateHistoricLoad(365, marketArea).filter(
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
     const totalFlex = blocks.reduce((s, b) => s + b.flexibleKwh, 0);
@@ -154,7 +164,7 @@ export function Dashboard() {
       optedInFlexibilityKwh: Math.round(totalFlex),
       activeEvCount: 847,
     };
-  }, [timeWindow, range]);
+  }, [timeWindow, range, marketArea]);
 
   return (
     <div className="space-y-8">
@@ -230,7 +240,7 @@ export function Dashboard() {
         />
       </div>
 
-      {settings.flex2Enabled ? (
+      {flex2Enabled ? (
         <div className="space-y-3">
           <BidSummaryStrip blocks={bidBlocks} />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -355,7 +365,8 @@ export function Dashboard() {
         <FleetChart
           range={range}
           timeWindow={timeWindow}
-          showBaseline={!settings.flex2Enabled}
+          showBaseline={!flex2Enabled}
+          area={marketArea}
         />
       </div>
 

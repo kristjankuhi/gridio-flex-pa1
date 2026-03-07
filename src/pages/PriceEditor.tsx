@@ -67,7 +67,7 @@ export function PriceEditor() {
     if (settings.flex2Enabled) return; // Flex 2.0 mode uses bid manager instead
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     api.market
-      .referencePrices(dateStr)
+      .referencePrices(dateStr, settings.marketArea)
       .then((blocks) =>
         setRefPrices(
           blocks.map((b) => ({
@@ -77,7 +77,7 @@ export function PriceEditor() {
         )
       )
       .catch(console.error);
-  }, [selectedDate, settings.flex2Enabled]);
+  }, [selectedDate, settings.flex2Enabled, settings.marketArea]);
 
   function handlePaste(startIndex: number, text: string) {
     const lines = text.trim().split('\n').filter(Boolean);

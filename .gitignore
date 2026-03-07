@@ -27,3 +27,6 @@ dist-ssr
 .claude/
 .playwright-mcp/
 control_room.png
+
+# Git worktrees
+.worktrees/

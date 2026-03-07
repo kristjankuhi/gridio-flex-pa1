@@ -46,6 +46,7 @@ function exportCsv(activations: ActivationRecord[], label: string) {
 
 export function Settlement() {
   const { settings } = useSettings();
+  const { marketArea } = settings;
   const {
     timeWindow,
     setTimeWindow,
@@ -67,8 +68,8 @@ export function Settlement() {
   );
 
   const allShiftBlocks = useMemo<LoadShiftBlock[]>(
-    () => generateLoadShiftBlocks(365),
-    []
+    () => generateLoadShiftBlocks(365, marketArea),
+    [marketArea]
   );
   const shiftBlocks = useMemo(
     () =>

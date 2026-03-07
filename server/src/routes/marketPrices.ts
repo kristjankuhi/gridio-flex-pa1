@@ -18,6 +18,24 @@ marketPricesRoutes.openapi(
     request: {
       query: z.object({
         date: z.string().date().describe('Date in YYYY-MM-DD format'),
+        area: z
+          .enum([
+            'global',
+            'BE',
+            'NL',
+            'DE-LU',
+            'FR',
+            'GB',
+            'DK1',
+            'DK2',
+            'FI',
+            'NO2',
+            'SE3',
+            'EE',
+            'LV',
+            'LT',
+          ])
+          .default('BE'),
       }),
     },
     responses: {
@@ -30,15 +48,14 @@ marketPricesRoutes.openapi(
     },
   }),
   (c) => {
-    const { date } = c.req.valid('query');
+    const { date, area } = c.req.valid('query');
+    const bzn = area === 'global' ? 'BE' : area;
     const blocks = generatePriceReference(parseISO(date));
 
-    // Layer real DA prices from cache where available
     const withRealDA = blocks.map((b) => {
-      const realDA = getPriceCacheFor15MinBlock(b.timestamp);
-      if (realDA === null) {
+      const realDA = getPriceCacheFor15MinBlock(b.timestamp, bzn);
+      if (realDA === null)
         return { ...b, timestamp: b.timestamp.toISOString() };
-      }
       const mfrrPremium = b.mfrrRefEurMwh - b.daSpotEurMwh;
       return {
         ...b,

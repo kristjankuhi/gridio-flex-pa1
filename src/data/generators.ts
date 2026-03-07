@@ -14,6 +14,10 @@ import type {
   DepartureComplianceBlock,
   OptInStatsBlock,
 } from '../types';
+import { AREA_EV_COUNTS, AREA_PRICE_FACTOR } from './areaConfig';
+import type { MarketArea } from '@/types';
+
+const TOTAL_EVS = 847;
 
 // Seeded pseudo-random for reproducibility in demos
 function seededRandom(seed: number): number {
@@ -222,31 +226,27 @@ function baseLoadKwhForHour(hour: number, isWeekend: boolean): number {
   return (isWeekend ? weekend[hour] : weekday[hour]) ?? 50;
 }
 
-export function generateFleetStats(): FleetStats {
+export function generateFleetStats(area: MarketArea = 'global'): FleetStats {
   const now = new Date();
   const hour = now.getHours();
+  const evCount = AREA_EV_COUNTS[area];
   const pluggedInRatio =
     hour >= 22 || hour < 6 ? 0.85 : hour >= 9 && hour < 16 ? 0.4 : 0.65;
-  const pluggedInCount = Math.round(FLEET_SIZE * pluggedInRatio);
-
-  // Fraction of plugged-in EVs actively drawing charge right now
-  // High overnight (bulk charging), moderate evening, low midday
-  const activeChargingRatio =
-    hour >= 22 || hour < 6 ? 0.9 : hour >= 9 && hour < 16 ? 0.6 : 0.75;
-  const activeChargingCount = Math.round(pluggedInCount * activeChargingRatio);
-
-  // Up headroom = power we can reduce (stop/throttle active chargers)
-  // Down headroom = power we can add (start idle-plugged EVs)
-  const upHeadroomKw = Math.round(activeChargingCount * AVG_CHARGER_KW);
+  const pluggedInCount = Math.round(evCount * pluggedInRatio);
+  const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
+  const avgBatteryKwh = 14.7;
+  const upHeadroomKw = Math.round(
+    pluggedInCount * ((avgSoC - 20) / 100) * avgBatteryKwh * 4
+  );
   const downHeadroomKw = Math.round(
-    (pluggedInCount - activeChargingCount) * AVG_CHARGER_KW
+    pluggedInCount * ((95 - avgSoC) / 100) * avgBatteryKwh * 4
   );
 
   const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
 
   return {
-    totalCapacityKwh: Math.round(FLEET_SIZE * AVG_BATTERY_KWH),
-    availableFlexibilityKw: Math.round(pluggedInCount * AVG_CHARGER_KW),
+    totalCapacityKwh: Math.round(evCount * avgBatteryKwh),
+    availableFlexibilityKw: upHeadroomKw,
     activeEvCount: pluggedInCount,
     avgStateOfChargePct: avgSoC,
     upHeadroomKw,
@@ -413,7 +413,10 @@ function avgSoCForHour(hour: number, isWeekend: boolean): number {
   return (isWeekend ? weekend[hour] : weekday[hour]) ?? 62;
 }
 
-export function generateSoCCurve(date: Date): SoCBlock[] {
+export function generateSoCCurve(
+  date: Date,
+  area: MarketArea = 'global'
+): SoCBlock[] {
   const blocks: SoCBlock[] = [];
   let current = startOfDay(date);
   let seed = date.getTime() % 7777;
@@ -463,7 +466,14 @@ export function generateSoCCurve(date: Date): SoCBlock[] {
 
     current = addMinutes(current, 15);
   }
-  return blocks;
+
+  const scale = AREA_EV_COUNTS[area] / TOTAL_EVS;
+  return blocks.map((b) => ({
+    ...b,
+    pluggedInCount: Math.round(b.pluggedInCount * scale),
+    upHeadroomKwh: b.upHeadroomKwh * scale,
+    downHeadroomKwh: b.downHeadroomKwh * scale,
+  }));
 }
 
 // Internal helper: generates historic load profile.
@@ -542,19 +552,44 @@ function generateLoadProfile(
   return blocks;
 }
 
-export function generateHistoricLoad(daysBack: number): TimeBlock[] {
-  return generateLoadProfile(daysBack, true);
+export function generateHistoricLoad(
+  daysBack: number,
+  area: MarketArea = 'global'
+): TimeBlock[] {
+  const blocks = generateLoadProfile(daysBack, true);
+  const scale = AREA_EV_COUNTS[area] / TOTAL_EVS;
+  const priceFactor = AREA_PRICE_FACTOR[area];
+  return blocks.map((b) => ({
+    ...b,
+    flexibleKwh: b.flexibleKwh * scale,
+    nonFlexibleKwh: b.nonFlexibleKwh * scale,
+    priceEurMwh: b.priceEurMwh * priceFactor,
+  }));
 }
 
-export function generateBaselineLoad(daysBack: number): TimeBlock[] {
-  return generateLoadProfile(daysBack, false);
+export function generateBaselineLoad(
+  daysBack: number,
+  area: MarketArea = 'global'
+): TimeBlock[] {
+  const blocks = generateLoadProfile(daysBack, false);
+  const scale = AREA_EV_COUNTS[area] / TOTAL_EVS;
+  const priceFactor = AREA_PRICE_FACTOR[area];
+  return blocks.map((b) => ({
+    ...b,
+    flexibleKwh: b.flexibleKwh * scale,
+    nonFlexibleKwh: b.nonFlexibleKwh * scale,
+    priceEurMwh: b.priceEurMwh * priceFactor,
+  }));
 }
 
-export function generateLoadShiftBlocks(daysBack: number): LoadShiftBlock[] {
+export function generateLoadShiftBlocks(
+  daysBack: number,
+  area: MarketArea = 'global'
+): LoadShiftBlock[] {
   const baseline = generateLoadProfile(daysBack, false);
   const managed = generateLoadProfile(daysBack, true);
 
-  return baseline.map((b, i) => {
+  const blocks = baseline.map((b, i) => {
     const m = managed[i];
     const baselineTotal = b.flexibleKwh + b.nonFlexibleKwh;
     const actualTotal = m.flexibleKwh + m.nonFlexibleKwh;
@@ -572,9 +607,23 @@ export function generateLoadShiftBlocks(daysBack: number): LoadShiftBlock[] {
       savingsEur: Math.round(savingsEur * 100) / 100,
     };
   });
+
+  const scale = AREA_EV_COUNTS[area] / TOTAL_EVS;
+  const priceFactor = AREA_PRICE_FACTOR[area];
+  return blocks.map((b) => ({
+    ...b,
+    baselineKwh: b.baselineKwh * scale,
+    actualKwh: b.actualKwh * scale,
+    deltaKwh: b.deltaKwh * scale,
+    daSpotEurMwh: b.daSpotEurMwh * priceFactor,
+    savingsEur: b.savingsEur * scale * priceFactor,
+  }));
 }
 
-export function generateForecastLoad(daysAhead: number): TimeBlock[] {
+export function generateForecastLoad(
+  daysAhead: number,
+  area: MarketArea = 'global'
+): TimeBlock[] {
   const blocks: TimeBlock[] = [];
   const now = new Date();
 
@@ -629,7 +678,14 @@ export function generateForecastLoad(daysAhead: number): TimeBlock[] {
     blockIndex++;
   }
 
-  return blocks;
+  const scale = AREA_EV_COUNTS[area] / TOTAL_EVS;
+  const priceFactor = AREA_PRICE_FACTOR[area];
+  return blocks.map((b) => ({
+    ...b,
+    flexibleKwh: b.flexibleKwh * scale,
+    nonFlexibleKwh: b.nonFlexibleKwh * scale,
+    priceEurMwh: b.priceEurMwh * priceFactor,
+  }));
 }
 
 export function generateBasePriceCurve(date: Date): PriceBlock[] {
@@ -656,7 +712,10 @@ export function generateBasePriceCurve(date: Date): PriceBlock[] {
   return blocks;
 }
 
-export function generatePriceReference(date: Date): PriceReferenceBlock[] {
+export function generatePriceReference(
+  date: Date,
+  area: MarketArea = 'global'
+): PriceReferenceBlock[] {
   const blocks: PriceReferenceBlock[] = [];
   let current = startOfDay(date);
   let seed = date.getTime() % 5555;
@@ -692,7 +751,14 @@ export function generatePriceReference(date: Date): PriceReferenceBlock[] {
 
     current = addMinutes(current, 15);
   }
-  return blocks;
+
+  const priceFactor = AREA_PRICE_FACTOR[area];
+  return blocks.map((b) => ({
+    ...b,
+    daSpotEurMwh: b.daSpotEurMwh * priceFactor,
+    idForecastEurMwh: b.idForecastEurMwh * priceFactor,
+    mfrrRefEurMwh: b.mfrrRefEurMwh * priceFactor,
+  }));
 }
 
 interface ProductDefaults {
@@ -896,16 +962,19 @@ export interface MarketSplitStats {
   mfrrDeliveryRatePct: number;
 }
 
-export function generateMarketSplitStats(range: {
-  start: Date;
-  end: Date;
-}): MarketSplitStats {
+export function generateMarketSplitStats(
+  range: {
+    start: Date;
+    end: Date;
+  },
+  area: MarketArea = 'global'
+): MarketSplitStats {
   const seed = range.start.getTime() % 9999;
   const daLoad = 8400 + seededRandom(seed) * 2000;
   const daSavings = daLoad * 0.018 * (45 + seededRandom(seed + 1) * 20);
   const idAdj = daLoad * 0.15 * (1 + (seededRandom(seed + 2) - 0.5) * 0.3);
   const idSavings = idAdj * 0.022 * (50 + seededRandom(seed + 3) * 15);
-  return {
+  const stats = {
     daLoadKwh: Math.round(daLoad),
     daSavingsEur: Math.round(daSavings / 1000),
     idAdjustmentsKwh: Math.round(idAdj),
@@ -914,6 +983,18 @@ export function generateMarketSplitStats(range: {
     mfrrDownKwh: Math.round(daLoad * 0.08),
     mfrrRevenueEur: Math.round(daLoad * 0.012),
     mfrrDeliveryRatePct: Math.round(82 + seededRandom(seed + 4) * 12),
+  };
+  const scale = AREA_EV_COUNTS[area] / TOTAL_EVS;
+  const priceFactor = AREA_PRICE_FACTOR[area];
+  return {
+    daLoadKwh: Math.round(stats.daLoadKwh * scale),
+    daSavingsEur: Math.round(stats.daSavingsEur * scale * priceFactor),
+    idAdjustmentsKwh: Math.round(stats.idAdjustmentsKwh * scale),
+    idSavingsEur: Math.round(stats.idSavingsEur * scale * priceFactor),
+    mfrrUpKwh: Math.round(stats.mfrrUpKwh * scale),
+    mfrrDownKwh: Math.round(stats.mfrrDownKwh * scale),
+    mfrrRevenueEur: Math.round(stats.mfrrRevenueEur * scale * priceFactor),
+    mfrrDeliveryRatePct: stats.mfrrDeliveryRatePct,
   };
 }
 
