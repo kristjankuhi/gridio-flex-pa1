@@ -11,6 +11,7 @@ import type {
   SoCBlock,
   LoadShiftBlock,
   UserEconomicsBlock,
+  DepartureComplianceBlock,
 } from '../types';
 
 // Seeded pseudo-random for reproducibility in demos
@@ -790,6 +791,49 @@ export function generateUserEconomics(daysBack: number): UserEconomicsBlock[] {
       mfrrBonusEur: Math.round(mfrrBonusEur * 100) / 100,
     };
   });
+}
+
+export function generateDepartureCompliance(
+  daysBack: number
+): DepartureComplianceBlock[] {
+  const blocks: DepartureComplianceBlock[] = [];
+  const now = new Date();
+  const reasonPool: DepartureComplianceBlock['reasons'][number][] = [
+    'grid_event',
+    'low_soc_at_plugin',
+    'short_session',
+  ];
+
+  for (let d = daysBack; d >= 1; d--) {
+    const date = subDays(now, d);
+    const month = date.getMonth();
+    const seed = date.getTime() % 8888;
+    const isWinter = month >= 10 || month <= 1;
+    const winterPenalty = isWinter ? 1.5 : 0;
+
+    const commuterBase = 97.5 + seededRandom(seed) * 2 - winterPenalty;
+    const flexibleBase = 93 + seededRandom(seed + 1) * 4 - winterPenalty;
+
+    const commuterCompliancePct =
+      Math.round(Math.min(99.5, Math.max(93, commuterBase)) * 10) / 10;
+    const flexibleCompliancePct =
+      Math.round(Math.min(98, Math.max(88, flexibleBase)) * 10) / 10;
+
+    const nonComplianceCount = Math.floor(seededRandom(seed + 2) * 8);
+    const reasons = Array.from(
+      { length: Math.min(nonComplianceCount, 3) },
+      (_, i) => reasonPool[Math.floor(seededRandom(seed + 3 + i) * 3)]
+    );
+
+    blocks.push({
+      date,
+      commuterCompliancePct,
+      flexibleCompliancePct,
+      nonComplianceCount,
+      reasons,
+    });
+  }
+  return blocks;
 }
 
 export function formatBlockTime(date: Date): string {
