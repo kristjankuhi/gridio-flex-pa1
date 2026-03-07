@@ -116,3 +116,8 @@ export interface ActivationRecord {
   revenueEur: number;
   blocks: ActivationBlock[];
 }
+
+export interface ImbalancePriceBlock {
+  timestamp: string;
+  imbalancePriceEurMwh: number;
+}

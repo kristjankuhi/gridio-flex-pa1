@@ -308,3 +308,15 @@ export const MfrrActivationResponseSchema = z
     tDispatch: z.string().datetime().nullable(),
   })
   .openapi('MfrrActivationResponse');
+
+export const ImbalancePriceBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    imbalancePriceEurMwh: z
+      .number()
+      .describe('Belgian imbalance settlement price (EUR/MWh)'),
+  })
+  .openapi('ImbalancePriceBlock');
