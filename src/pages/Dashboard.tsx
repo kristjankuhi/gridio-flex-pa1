@@ -95,7 +95,7 @@ export function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold mb-1">Fleet Portfolio</h1>
+        <h1 className="text-xl font-semibold mb-1">Fleet Overview</h1>
         <p className="text-sm text-muted-foreground">
           Real-time overview of EV fleet capacity and flexibility
         </p>
