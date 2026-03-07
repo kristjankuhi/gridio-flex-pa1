@@ -557,7 +557,7 @@ export function generateLoadShiftBlocks(
     actualKwh: b.actualKwh * scale,
     deltaKwh: b.deltaKwh * scale,
     daSpotEurMwh: b.daSpotEurMwh * priceFactor,
-    savingsEur: b.savingsEur * scale,
+    savingsEur: b.savingsEur * scale * priceFactor,
   }));
 }
 
