@@ -8,6 +8,7 @@ import type {
   TimeWindow,
   SoCBlock,
   BidBlock,
+  MarketArea,
 } from '@/types';
 
 const BASE = 'http://localhost:3000/api/v1';
@@ -32,12 +33,13 @@ export const api = {
   fleet: {
     stats: (): Promise<FleetStats> => get('/fleet/stats'),
     load: (
-      window: TimeWindow
+      window: TimeWindow,
+      area: MarketArea = 'global'
     ): Promise<{
       window: TimeWindow;
       simulatedNow: string;
       blocks: TimeBlock[];
-    }> => get(`/fleet/load?window=${window}`),
+    }> => get(`/fleet/load?window=${window}&area=${area}`),
     soc: (date: string): Promise<SoCBlock[]> => get(`/fleet/soc?date=${date}`),
   },
   priceCurve: {
@@ -58,8 +60,11 @@ export const api = {
       post('/simulation/run', { date, newPriceBlocks }),
   },
   market: {
-    referencePrices: (date: string): Promise<PriceReferenceBlock[]> =>
-      get(`/market/reference-prices?date=${date}`),
+    referencePrices: (
+      date: string,
+      area: MarketArea = 'global'
+    ): Promise<PriceReferenceBlock[]> =>
+      get(`/market/reference-prices?date=${date}&area=${area}`),
   },
   bids: {
     get: (date: string): Promise<BidBlock[]> => get(`/bids?date=${date}`),

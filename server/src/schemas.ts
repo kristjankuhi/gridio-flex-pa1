@@ -140,6 +140,28 @@ export const PriceReferenceBlockSchema = z
   })
   .openapi('PriceReferenceBlock');
 
+export const AreaQuerySchema = z.object({
+  area: z
+    .enum([
+      'global',
+      'BE',
+      'NL',
+      'DE-LU',
+      'FR',
+      'GB',
+      'DK1',
+      'DK2',
+      'FI',
+      'NO2',
+      'SE3',
+      'EE',
+      'LV',
+      'LT',
+    ])
+    .default('BE')
+    .describe('ENTSO-E bidding zone or "global" for fleet-weighted average'),
+});
+
 export const ErrorSchema = z
   .object({
     error: z.string(),

@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom';
+import type { MarketArea } from '@/types';
+import { AREA_GROUPS, AREA_LABEL } from '@/data/areaConfig';
 import { Badge } from '@/components/ui/badge';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { useSettings } from '@/store/settingsStore';
 
 export function TopNav() {
-  const {
-    settings: { flex2Enabled },
-  } = useSettings();
+  const { settings, update } = useSettings();
+  const { flex2Enabled, marketArea } = settings;
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="mx-auto max-w-7xl flex items-center justify-between px-6 h-14">
@@ -64,6 +65,25 @@ export function TopNav() {
           >
             {flex2Enabled ? 'Flex 2.0' : 'Flex 1.0'}
           </Badge>
+          {/* Market area selector */}
+          <select
+            value={marketArea}
+            onChange={(e) =>
+              update({ marketArea: e.target.value as MarketArea })
+            }
+            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+            aria-label="Market area"
+          >
+            {AREA_GROUPS.map(({ label, areas }) => (
+              <optgroup key={label} label={label}>
+                {areas.map((a) => (
+                  <option key={a} value={a}>
+                    {AREA_LABEL[a]}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
           <SettingsPanel />
           <Badge
             variant="secondary"

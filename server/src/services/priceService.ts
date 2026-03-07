@@ -5,16 +5,38 @@ interface HourlyPrice {
   priceEurMwh: number;
 }
 
-let priceCache: HourlyPrice[] = [];
+/** All ENTSO-E bidding zones supported by this app */
+const ALL_BZN = [
+  'BE',
+  'NL',
+  'DE-LU',
+  'FR',
+  'GB',
+  'DK1',
+  'DK2',
+  'FI',
+  'NO2',
+  'SE3',
+  'EE',
+  'LV',
+  'LT',
+] as const;
 
-export async function fetchBelgianPrices(
+/** One price cache per bzn string */
+const priceCaches = new Map<string, HourlyPrice[]>();
+
+export async function fetchPricesForZone(
+  bzn: string,
   from: Date,
   to: Date
 ): Promise<HourlyPrice[]> {
-  const url = `https://api.energy-charts.info/price?bzn=BE&start=${format(from, 'yyyy-MM-dd')}&end=${format(to, 'yyyy-MM-dd')}`;
+  const url =
+    `https://api.energy-charts.info/price?bzn=${bzn}` +
+    `&start=${format(from, 'yyyy-MM-dd')}&end=${format(to, 'yyyy-MM-dd')}`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`energy-charts API error: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`energy-charts API error ${res.status} for ${bzn}`);
 
   const data = (await res.json()) as {
     unix_seconds: number[];
@@ -32,28 +54,36 @@ export async function initPriceCache(): Promise<void> {
   const from = subYears(to, 2);
 
   console.log(
-    'Fetching 2 years of Belgian DA prices from energy-charts.info...'
+    `Fetching 2 years of DA prices for ${ALL_BZN.length} zones from energy-charts.info...`
   );
-  try {
-    priceCache = await fetchBelgianPrices(from, to);
-    console.log(
-      `✓ Cached ${priceCache.length} hourly price points (${format(from, 'yyyy-MM-dd')} – ${format(to, 'yyyy-MM-dd')})`
-    );
-  } catch (err) {
+
+  const results = await Promise.allSettled(
+    ALL_BZN.map(async (bzn) => {
+      const prices = await fetchPricesForZone(bzn, from, to);
+      priceCaches.set(bzn, prices);
+      console.log(`  ✓ ${bzn}: ${prices.length} price points`);
+    })
+  );
+
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (failed > 0) {
     console.warn(
-      '⚠ Price fetch failed, falling back to synthetic prices:',
-      err
+      `⚠ ${failed} zone(s) failed — falling back to synthetic prices for those zones`
     );
   }
 }
 
-export function getPriceCacheFor15MinBlock(timestamp: Date): number | null {
-  if (priceCache.length === 0) return null;
+export function getPriceCacheFor15MinBlock(
+  timestamp: Date,
+  bzn = 'BE'
+): number | null {
+  const cache = priceCaches.get(bzn);
+  if (!cache || cache.length === 0) return null;
 
   const hourStart = new Date(timestamp);
   hourStart.setMinutes(0, 0, 0);
 
-  const match = priceCache.find(
+  const match = cache.find(
     (p) => Math.abs(p.timestamp.getTime() - hourStart.getTime()) < 60000
   );
   return match?.priceEurMwh ?? null;
@@ -61,10 +91,11 @@ export function getPriceCacheFor15MinBlock(timestamp: Date): number | null {
 
 export function applyRealPrices<
   T extends { timestamp: Date; priceEurMwh: number },
->(blocks: T[]): T[] {
-  if (priceCache.length === 0) return blocks;
+>(blocks: T[], bzn = 'BE'): T[] {
+  const cache = priceCaches.get(bzn);
+  if (!cache || cache.length === 0) return blocks;
   return blocks.map((b) => {
-    const realPrice = getPriceCacheFor15MinBlock(b.timestamp);
+    const realPrice = getPriceCacheFor15MinBlock(b.timestamp, bzn);
     return realPrice !== null ? { ...b, priceEurMwh: realPrice } : b;
   });
 }

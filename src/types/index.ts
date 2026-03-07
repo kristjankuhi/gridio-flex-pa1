@@ -116,3 +116,19 @@ export interface ActivationRecord {
   revenueEur: number;
   blocks: ActivationBlock[];
 }
+
+export type MarketArea =
+  | 'global'
+  | 'BE'
+  | 'NL'
+  | 'DE-LU'
+  | 'FR'
+  | 'GB'
+  | 'DK1'
+  | 'DK2'
+  | 'FI'
+  | 'NO2'
+  | 'SE3'
+  | 'EE'
+  | 'LV'
+  | 'LT';
