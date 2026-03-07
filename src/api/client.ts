@@ -4,6 +4,7 @@ import type {
   PriceBlock,
   PriceCurveVersion,
   PriceReferenceBlock,
+  ImbalancePriceBlock,
   SimulationResult,
   TimeWindow,
   SoCBlock,
@@ -65,6 +66,11 @@ export const api = {
       area: MarketArea = 'global'
     ): Promise<PriceReferenceBlock[]> =>
       get(`/market/reference-prices?date=${date}&area=${area}`),
+    imbalancePrices: (
+      start: string,
+      end: string
+    ): Promise<ImbalancePriceBlock[]> =>
+      get(`/market/imbalance-prices?start=${start}&end=${end}`),
   },
   bids: {
     get: (date: string): Promise<BidBlock[]> => get(`/bids?date=${date}`),
