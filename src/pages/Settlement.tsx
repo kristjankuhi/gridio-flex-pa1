@@ -3,8 +3,12 @@ import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { ActivationTable } from '@/components/ActivationTable';
 import { StatCard } from '@/components/StatCard';
-import { generateActivationHistory } from '@/data/generators';
-import type { ActivationRecord } from '@/types';
+import {
+  generateActivationHistory,
+  generateLoadShiftBlocks,
+} from '@/data/generators';
+import { LoadShiftChart } from '@/components/LoadShiftChart';
+import type { ActivationRecord, LoadShiftBlock } from '@/types';
 import { useSettings } from '@/store/settingsStore';
 
 function exportCsv(activations: ActivationRecord[], label: string) {
@@ -56,10 +60,18 @@ export function Settlement() {
     [allActivations, range]
   );
 
-  const totalShifted = activations.reduce(
-    (s, a) => s + Math.abs(a.shiftedKwh),
-    0
+  const allShiftBlocks = useMemo<LoadShiftBlock[]>(
+    () => generateLoadShiftBlocks(365),
+    []
   );
+  const shiftBlocks = useMemo(
+    () =>
+      allShiftBlocks.filter(
+        (b) => b.timestamp >= range.start && b.timestamp <= range.end
+      ),
+    [allShiftBlocks, range]
+  );
+
   const capacityRevenue = activations.reduce(
     (s, a) => s + a.capacityPaymentEur,
     0
@@ -67,6 +79,20 @@ export function Settlement() {
   const energyRevenue = activations.reduce((s, a) => s + a.energyPaymentEur, 0);
   const imbalanceCost = activations.reduce((s, a) => s + a.imbalanceCostEur, 0);
   const netRevenue = activations.reduce((s, a) => s + a.revenueEur, 0);
+
+  const baselineCostEur = shiftBlocks.reduce(
+    (s, b) => s + (b.baselineKwh * Math.max(0, b.daSpotEurMwh)) / 1000,
+    0
+  );
+  const actualCostEur = shiftBlocks.reduce(
+    (s, b) => s + (b.actualKwh * Math.max(0, b.daSpotEurMwh)) / 1000,
+    0
+  );
+  const daSavingsEur = baselineCostEur - actualCostEur;
+  const savingsRatePct =
+    baselineCostEur > 0
+      ? Math.round((daSavingsEur / baselineCostEur) * 1000) / 10
+      : 0;
 
   return (
     <div className="space-y-8">
@@ -114,25 +140,33 @@ export function Settlement() {
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            label="Total Load Shifted"
-            value={Math.round(totalShifted).toLocaleString()}
-            unit="kWh"
+            label="Baseline Cost"
+            value={`€${Math.round(baselineCostEur).toLocaleString()}`}
+            unit=""
+            trend="Without Gridio"
           />
           <StatCard
-            label="DA / ID Cost Savings"
-            value={`€${Math.round(netRevenue).toLocaleString()}`}
+            label="Actual Cost"
+            value={`€${Math.round(actualCostEur).toLocaleString()}`}
+            unit=""
+            trend="With Gridio"
+          />
+          <StatCard
+            label="DA Savings"
+            value={`€${Math.round(daSavingsEur).toLocaleString()}`}
             unit=""
           />
           <StatCard
-            label="Capacity Revenue"
-            value={`€${Math.round(capacityRevenue).toLocaleString()}`}
-            unit=""
+            label="Savings Rate"
+            value={savingsRatePct.toString()}
+            unit="%"
           />
-          <StatCard
-            label="Net Revenue"
-            value={`€${Math.round(netRevenue).toLocaleString()}`}
-            unit=""
-          />
+        </div>
+      )}
+
+      {!settings.flex2Enabled && shiftBlocks.length > 0 && (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <LoadShiftChart blocks={shiftBlocks} timeWindow={timeWindow} />
         </div>
       )}
 
