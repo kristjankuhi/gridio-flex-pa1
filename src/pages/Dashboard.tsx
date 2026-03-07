@@ -135,7 +135,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {settings.mfrrEnabled && (
+      {settings.flex2Enabled && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">
             mFRR (Flex 2.0)
