@@ -19,7 +19,7 @@ import type { TimeWindow, PeriodRange } from '@/types';
 const TEAL = '#00c9a7';
 const AMBER = '#f59e0b';
 const DARK_GREY = '#334155';
-const CAPACITY_KW = 3280;
+const CAPACITY_KWH_PER_BLOCK = 820;
 
 // DA market closes at 12:00 CET, prices published ~12:45 for the next full day.
 // After 13:00, prices through end of tomorrow are known; before 13:00, only today.
@@ -237,19 +237,21 @@ export function FleetChart({ range, timeWindow }: FleetChartProps) {
             />
             <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
 
-            {/* Capacity ceiling */}
-            <ReferenceLine
-              yAxisId="kwh"
-              y={CAPACITY_KW}
-              stroke="#475569"
-              strokeDasharray="4 4"
-              label={{
-                value: 'Opted-in capacity',
-                fill: '#475569',
-                fontSize: 10,
-                position: 'insideTopRight',
-              }}
-            />
+            {/* Capacity ceiling — only meaningful in 1D view (per-block kWh) */}
+            {timeWindow === '1D' && (
+              <ReferenceLine
+                yAxisId="kwh"
+                y={CAPACITY_KWH_PER_BLOCK}
+                stroke="#475569"
+                strokeDasharray="4 4"
+                label={{
+                  value: 'Opted-in capacity (820 kWh/block)',
+                  fill: '#475569',
+                  fontSize: 10,
+                  position: 'insideTopRight',
+                }}
+              />
+            )}
 
             {/* Now marker */}
             <ReferenceLine
