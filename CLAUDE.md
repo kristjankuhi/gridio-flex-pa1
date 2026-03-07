@@ -81,15 +81,25 @@ app_workspace/
 │       │   ├── priceCurve.ts         # GET/POST /price-curve, versioning
 │       │   ├── simulation.ts         # POST /simulation/run
 │       │   ├── bids.ts               # GET/POST /bids — Flex 2.0 bid timeline
-│       │   ├── marketPrices.ts       # GET /market/reference-prices
-│       │   └── soc.ts                # GET /fleet/soc
+│       │   ├── marketPrices.ts       # GET /market/reference-prices, GET /market/imbalance-prices
+│       │   ├── soc.ts                # GET /fleet/soc
+│       │   ├── settlement.ts         # GET /settlement/summary, GET/POST /settlement/activations
+│       │   ├── mfrr.ts               # POST /mfrr/activate, POST /mfrr/deactivate
+│       │   └── apiKeys.ts            # GET/POST /api-keys, DELETE /api-keys/{id}
+│       ├── middleware/
+│       │   ├── auth.ts               # X-API-Key validation; requireScope() helper
+│       │   ├── requestId.ts          # Adds X-Request-ID to every response
+│       │   └── idempotency.ts        # Idempotency-Key dedup for POST requests
 │       ├── services/
 │       │   ├── priceService.ts       # Fetches real Belgian DA prices (energy-charts.info)
+│       │   ├── eliaService.ts        # Fetches real Elia imbalance + mFRR marginal prices (ods047/ods134/ods162)
 │       │   └── simulationClock.ts    # Server-side simulation clock (15-min ticks)
 │       ├── schemas.ts                # Zod/OpenAPI schemas
 │       └── store/
+│           ├── apiKeyStore.ts        # In-memory API key store (3 dev keys seeded at startup)
 │           ├── bidStore.ts           # In-memory bid timeline store
-│           └── priceCurveStore.ts    # In-memory price curve version store
+│           ├── priceCurveStore.ts    # In-memory price curve version store
+│           └── settlementStore.ts    # In-memory settlement/activation record store
 ├── src/
 │   ├── api/
 │   │   └── client.ts                 # Typed REST API client
@@ -119,7 +129,8 @@ app_workspace/
 │   ├── pages/
 │   │   ├── Dashboard.tsx             # /dashboard
 │   │   ├── PriceEditor.tsx           # /price-editor
-│   │   └── Settlement.tsx            # /settlement
+│   │   ├── Settlement.tsx            # /settlement
+│   │   └── EvUsers.tsx               # /ev-users — EV owner view (credits, compliance, opt-in)
 │   ├── store/
 │   │   ├── priceCurveStore.tsx       # React Context price curve state
 │   │   └── settingsStore.tsx         # React Context settings (localStorage-backed)
@@ -136,6 +147,26 @@ app_workspace/
 
 ## Key Implementation Notes
 
+### API authentication
+
+- All `/api/v1/*` endpoints require `X-API-Key` header — missing or unknown key → 401.
+- Three dev keys are seeded in `server/src/store/apiKeyStore.ts` at startup:
+  - `gf_dev_readonly_aabbccddeeff0011` — `read` scope
+  - `gf_dev_trader_aabbccddeeff0022` — `read` + `write` scope (used by the frontend client)
+  - `gf_dev_admin_aabbccddeeff0033` — `read` + `write` + `admin` scope
+- The frontend client (`src/api/client.ts`) hardcodes the trader key for local dev.
+- `requireScope(scope)` middleware helper used by routes that need `write` or `admin`.
+
+### Elia real-data integration (`server/src/services/eliaService.ts`)
+
+- Fetches real Belgian imbalance prices (last 90 days) at startup from Elia Open Data:
+  - `ods047` — pre-MARI (before 2024-05-22): `positiveimbalanceprice`
+  - `ods134` — post-MARI: `imbalanceprice` + `marginalincrementalprice` (mFRR)
+  - `ods162` — near-real-time (<24h): refreshed every hour
+- `getImbalancePrice(ts)` / `getMfrrMarginalPrice(ts)` — cache lookups (15-min bucket key)
+- `getImbalancePriceRange(from, to)` — used by `GET /market/imbalance-prices`
+- Cache is in-memory; gaps mean no real data for that slot (client falls back to defaults).
+
 ### Data generation (`src/data/generators.ts`)
 
 - `generateHistoricLoad(daysBack)` ends at `now` (not midnight) — ensures today's intraday blocks are included.
@@ -143,6 +174,7 @@ app_workspace/
 - Belgian DA price model: monthly base prices × seasonal intraday shape (duck curve in summer, double peak in winter) × weekend discount (12%).
 - Negative price events: ~18% of summer days (Jun–Sep) trigger deeply negative midday blocks (−8 to −55 EUR/MWh). Same day always produces the same result (seeded by day index).
 - Forecast uncertainty grows from ±10% near-term to ±40% at 1 year out.
+- `generateActivationHistory(daysBack)` — all seeded records are included regardless of time-of-day (no `ts > now` guard). This ensures today's 1D view always shows activation data.
 
 ### Chart x-axis alignment (`src/data/chartBuckets.ts`)
 
