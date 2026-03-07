@@ -13,6 +13,7 @@ import {
   generateFleetStats,
   generateMarketSplitStats,
   generateLoadShiftBlocks,
+  generatePriceReference,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
 import type { FleetStats, SoCBlock, BidBlock } from '@/types';
@@ -94,6 +95,18 @@ export function Dashboard() {
     };
   }, [settings.flex2Enabled, range]);
 
+  // Current DA spot price for the present 15-min block (computed once at render)
+  const _now = new Date();
+  const _rounded = new Date(_now);
+  _rounded.setMinutes(Math.floor(_now.getMinutes() / 15) * 15, 0, 0);
+  const _priceBlocks = generatePriceReference(_now);
+  const _currentBlock = _priceBlocks.find(
+    (b) => new Date(b.timestamp).getTime() === _rounded.getTime()
+  );
+  const currentDaPrice = _currentBlock
+    ? Math.round(_currentBlock.daSpotEurMwh * 10) / 10
+    : null;
+
   const totalReservedMw = bidBlocks
     .filter((b) => b.isAvailable)
     .reduce((max, b) => Math.max(max, b.reservedMw), 0);
@@ -119,11 +132,32 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold mb-1">Fleet Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          Real-time overview of EV fleet capacity and flexibility
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold mb-1">Fleet Overview</h1>
+          <p className="text-sm text-muted-foreground">
+            Real-time overview of EV fleet capacity and flexibility
+          </p>
+        </div>
+        {currentDaPrice != null && (
+          <div className="text-right shrink-0">
+            <p className="text-xs text-muted-foreground">DA Spot (now)</p>
+            <p
+              className={`text-lg font-semibold tabular-nums ${
+                currentDaPrice < 0
+                  ? 'text-emerald-400'
+                  : currentDaPrice > 100
+                    ? 'text-red-400'
+                    : 'text-amber-400'
+              }`}
+            >
+              €{currentDaPrice.toFixed(1)}{' '}
+              <span className="text-xs font-normal text-muted-foreground">
+                /MWh
+              </span>
+            </p>
+          </div>
+        )}
       </div>
 
       <PeriodSelector
