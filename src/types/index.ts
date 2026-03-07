@@ -99,8 +99,8 @@ export interface UserEconomicsBlock {
 
 export interface DepartureComplianceBlock {
   date: Date;
-  commuterCompliancePct: number;
-  flexibleCompliancePct: number;
+  commuterCompliancePct: number; // 70% of fleet: weekday departure 07:30, target SoC 80%
+  flexibleCompliancePct: number; // 30% of fleet: fleet/WFH, departure 08:30, target SoC 70%
   nonComplianceCount: number;
   reasons: ('grid_event' | 'low_soc_at_plugin' | 'short_session')[];
 }
@@ -108,11 +108,11 @@ export interface DepartureComplianceBlock {
 // --- Opt-in stats ---
 
 export interface OptInStatsBlock {
-  month: Date;
-  optInRatePct: number;
+  month: Date; // first day of the month (UTC midnight)
+  optInRatePct: number; // fleet-wide weighted average (not a simple average of consumer + fleet rates)
   consumerOptInPct: number;
   fleetOptInPct: number;
-  newEnrolments: number;
+  newEnrollments: number;
   churned: number;
 }
 
