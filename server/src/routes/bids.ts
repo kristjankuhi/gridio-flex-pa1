@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
+import { requireScope } from '../middleware/auth';
 import { generateBidTimeline } from '@/data/generators';
 import { getBids, saveBids } from '../store/bidStore';
 import { BidBlockSchema, SaveBidsBodySchema } from '../schemas';
@@ -45,6 +46,7 @@ bidsRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/bids',
+    middleware: [requireScope('write')] as const,
     tags: ['Bids'],
     summary: 'Save bid timeline',
     description: 'Saves a new bid timeline for the given date.',
