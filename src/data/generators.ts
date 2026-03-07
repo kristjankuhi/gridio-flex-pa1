@@ -447,9 +447,14 @@ function generateLoadProfile(
     let flexibleKwh: number;
     if (applyPriceShift) {
       // Gridio shifts flexible charging toward cheap hours.
-      // Reference price: midday average (solar minimum in summer, grid reference in winter).
-      // shiftFactor > 1 on cheap hours (add load), < 1 on expensive hours (reduce load).
-      const refPrice = basePriceForHour(12, month, isWeekend);
+      // Reference = daily average price for this month/day-type so that hours above
+      // average get reduced load (negative delta) and hours below average get
+      // increased load (positive delta) — producing bars in both directions.
+      const dailyAvgPrice =
+        Array.from({ length: 24 }, (_, h) =>
+          basePriceForHour(h, month, isWeekend)
+        ).reduce((s, p) => s + p, 0) / 24;
+      const refPrice = dailyAvgPrice;
       const effectivePrice = Math.max(5, priceEurMwh); // avoid divide-by-zero on negatives
       const shiftFactor = Math.max(
         0.35,
