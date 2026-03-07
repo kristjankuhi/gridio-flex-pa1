@@ -5,6 +5,7 @@ import type {
   PriceBlock,
   PriceReferenceBlock,
   FlexProduct,
+  BidBlock,
   ActivationRecord,
   ActivationBlock,
   SoCBlock,
@@ -564,6 +565,78 @@ export function generatePriceReference(date: Date): PriceReferenceBlock[] {
     });
 
     current = addMinutes(current, 15);
+  }
+  return blocks;
+}
+
+interface ProductDefaults {
+  typicalWindow: [number, number]; // hour range [start, end)
+  capacityPriceRange: [number, number]; // €/MW/h
+  energyPriceRange: [number, number]; // €/MWh
+  typicalMw: number;
+}
+
+const PRODUCT_DEFAULTS: Record<FlexProduct, ProductDefaults> = {
+  fcr: {
+    typicalWindow: [0, 24],
+    capacityPriceRange: [8, 15],
+    energyPriceRange: [0, 0],
+    typicalMw: 0.5,
+  },
+  afrr: {
+    typicalWindow: [6, 22],
+    capacityPriceRange: [5, 10],
+    energyPriceRange: [30, 80],
+    typicalMw: 1.0,
+  },
+  mfrr: {
+    typicalWindow: [6, 22],
+    capacityPriceRange: [3, 8],
+    energyPriceRange: [60, 120],
+    typicalMw: 1.5,
+  },
+  'id-balancing': {
+    typicalWindow: [8, 20],
+    capacityPriceRange: [2, 5],
+    energyPriceRange: [40, 90],
+    typicalMw: 0.8,
+  },
+};
+
+export function generateBidTimeline(date: Date): BidBlock[] {
+  const blocks: BidBlock[] = [];
+  let seed = date.getTime() % 3333;
+
+  const products: FlexProduct[] = ['mfrr', 'id-balancing'];
+  if (seededRandom(seed++) > 0.4) products.push('fcr');
+  if (seededRandom(seed++) > 0.5) products.push('afrr');
+
+  for (const product of products) {
+    const defaults = PRODUCT_DEFAULTS[product];
+    let current = startOfDay(date);
+    const [windowStart, windowEnd] = defaults.typicalWindow;
+
+    const actualStart = windowStart + Math.floor(seededRandom(seed++) * 2);
+    const actualEnd = windowEnd - Math.floor(seededRandom(seed++) * 2);
+    const reservedMw = defaults.typicalMw * (0.8 + seededRandom(seed++) * 0.4);
+    const [capMin, capMax] = defaults.capacityPriceRange;
+    const capacityPrice = capMin + seededRandom(seed++) * (capMax - capMin);
+    const [enMin, enMax] = defaults.energyPriceRange;
+    const energyPrice = enMin + seededRandom(seed++) * (enMax - enMin);
+
+    for (let i = 0; i < 96; i++) {
+      const hour = current.getHours();
+      const isAvailable = hour >= actualStart && hour < actualEnd;
+      blocks.push({
+        timestamp: new Date(current),
+        product,
+        reservedMw: Math.round(reservedMw * 100) / 100,
+        capacityPriceEurMwH: Math.round(capacityPrice * 100) / 100,
+        energyPriceEurMwh: Math.round(energyPrice * 100) / 100,
+        isAvailable,
+      });
+      current = addMinutes(current, 15);
+    }
   }
   return blocks;
 }
