@@ -254,7 +254,6 @@ export function generateFleetStats(): FleetStats {
 const AVG_BATTERY_KWH = 55; // Renault Zoe / early Model 3 mix — realistic modern EV
 const AVG_CHARGER_KW = 7.4; // standard home Type 2 AC charger
 const FLEET_SIZE = 847;
-const MIN_SOC_BUFFER = 20; // summer base; seasonalMinBuffer() overrides per month
 const MAX_SOC = 95;
 
 // Seasonal min SoC buffer: winter cold reduces range, users need higher starting SoC
@@ -273,7 +272,6 @@ function seasonalTargetSoC(month: number): number {
 // Mixed fleet: 70% commuter (depart 07:30 weekday / 09:30 weekend),
 //              30% flexible (depart 08:30 weekday / 10:30 weekend)
 // Returns a weighted average floor for the fleet.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function computeDynamicFloor(
   hour: number,
   minute: number,
@@ -431,14 +429,24 @@ export function generateSoCCurve(date: Date): SoCBlock[] {
     const socNoise = (seededRandom(seed++) - 0.5) * 4;
     const soc = Math.min(
       MAX_SOC,
-      Math.max(MIN_SOC_BUFFER + 5, avgSoC + socNoise)
+      Math.max(seasonalMinBuffer(date.getMonth()) + 5, avgSoC + socNoise)
     );
 
     const upHeadroomKwh = Math.round(
-      ((soc - MIN_SOC_BUFFER) / 100) * pluggedInCount * AVG_BATTERY_KWH
+      ((soc - seasonalMinBuffer(date.getMonth())) / 100) *
+        pluggedInCount *
+        AVG_BATTERY_KWH
     );
     const downHeadroomKwh = Math.round(
       ((MAX_SOC - soc) / 100) * pluggedInCount * AVG_BATTERY_KWH
+    );
+
+    const minute = current.getMinutes();
+    const dynamicFloorPct = computeDynamicFloor(
+      hour,
+      minute,
+      isWeekend,
+      date.getMonth()
     );
 
     blocks.push({
@@ -447,6 +455,7 @@ export function generateSoCCurve(date: Date): SoCBlock[] {
       pluggedInCount,
       upHeadroomKwh: Math.max(0, upHeadroomKwh),
       downHeadroomKwh: Math.max(0, downHeadroomKwh),
+      dynamicFloorPct,
     });
 
     current = addMinutes(current, 15);
