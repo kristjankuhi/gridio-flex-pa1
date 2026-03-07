@@ -12,11 +12,30 @@ import { socRoutes } from './routes/soc';
 import { initPriceCache, scheduleDailyRefresh } from './services/priceService';
 import { startSimulationClock } from './services/simulationClock';
 import { authMiddleware } from './middleware/auth';
+import { requestIdMiddleware } from './middleware/requestId';
 import { createProblem } from './schemas';
 
 const app = new OpenAPIHono();
 
-app.use('*', cors({ origin: 'http://localhost:5173' }));
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
+app.use(
+  '*',
+  cors({
+    origin: (origin) =>
+      allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    allowHeaders: [
+      'X-API-Key',
+      'X-Request-ID',
+      'Content-Type',
+      'Idempotency-Key',
+    ],
+    exposeHeaders: ['X-Request-ID', 'X-API-Version', 'X-RateLimit-Remaining'],
+  })
+);
+app.use('*', requestIdMiddleware);
 app.use('/api/v1/*', authMiddleware);
 
 app.route('/api/v1', bidsRoutes);
