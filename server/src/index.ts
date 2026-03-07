@@ -5,6 +5,7 @@ import { cors } from 'hono/cors';
 import { fleetRoutes } from './routes/fleet';
 import { priceCurveRoutes } from './routes/priceCurve';
 import { simulationRoutes } from './routes/simulation';
+import { socRoutes } from './routes/soc';
 import { initPriceCache, scheduleDailyRefresh } from './services/priceService';
 import { startSimulationClock } from './services/simulationClock';
 
@@ -15,6 +16,7 @@ app.use('*', cors({ origin: 'http://localhost:5173' }));
 app.route('/api/v1', fleetRoutes);
 app.route('/api/v1', priceCurveRoutes);
 app.route('/api/v1', simulationRoutes);
+app.route('/api/v1', socRoutes);
 
 app.doc('/api/doc', {
   openapi: '3.0.0',

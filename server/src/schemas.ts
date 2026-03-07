@@ -14,8 +14,27 @@ export const FleetStatsSchema = z
       .min(0)
       .max(100)
       .describe('Average SoC across active EVs (%)'),
+    upHeadroomKw: z.number().describe('Up-regulation headroom (kW)'),
+    downHeadroomKw: z.number().describe('Down-regulation headroom (kW)'),
   })
   .openapi('FleetStats');
+
+export const SoCBlockSchema = z
+  .object({
+    timestamp: z
+      .string()
+      .datetime()
+      .describe('Start of 15-min block (ISO 8601)'),
+    avgSoCPct: z.number().min(0).max(100).describe('Fleet average SoC (%)'),
+    pluggedInCount: z.number().int().describe('EVs currently plugged in'),
+    upHeadroomKwh: z
+      .number()
+      .describe('Energy available for up-regulation (kWh)'),
+    downHeadroomKwh: z
+      .number()
+      .describe('Energy available for down-regulation (kWh)'),
+  })
+  .openapi('SoCBlock');
 
 export const TimeBlockSchema = z
   .object({

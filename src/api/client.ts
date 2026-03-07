@@ -5,6 +5,7 @@ import type {
   PriceCurveVersion,
   SimulationResult,
   TimeWindow,
+  SoCBlock,
 } from '@/types';
 
 const BASE = 'http://localhost:3000/api/v1';
@@ -35,6 +36,7 @@ export const api = {
       simulatedNow: string;
       blocks: TimeBlock[];
     }> => get(`/fleet/load?window=${window}`),
+    soc: (date: string): Promise<SoCBlock[]> => get(`/fleet/soc?date=${date}`),
   },
   priceCurve: {
     get: (date: string): Promise<PriceBlock[]> =>
