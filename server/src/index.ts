@@ -9,6 +9,9 @@ import { marketPricesRoutes } from './routes/marketPrices';
 import { priceCurveRoutes } from './routes/priceCurve';
 import { simulationRoutes } from './routes/simulation';
 import { socRoutes } from './routes/soc';
+import { apiKeysRoutes } from './routes/apiKeys';
+import { settlementRoutes } from './routes/settlement';
+import { mfrrRoutes } from './routes/mfrr';
 import { initPriceCache, scheduleDailyRefresh } from './services/priceService';
 import { startSimulationClock } from './services/simulationClock';
 import { authMiddleware } from './middleware/auth';
@@ -44,6 +47,9 @@ app.route('/api/v1', marketPricesRoutes);
 app.route('/api/v1', priceCurveRoutes);
 app.route('/api/v1', simulationRoutes);
 app.route('/api/v1', socRoutes);
+app.route('/api/v1', apiKeysRoutes);
+app.route('/api/v1', settlementRoutes);
+app.route('/api/v1', mfrrRoutes);
 
 app.doc('/api/doc', {
   openapi: '3.0.0',
