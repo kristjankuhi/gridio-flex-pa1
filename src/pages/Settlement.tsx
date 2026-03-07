@@ -6,9 +6,15 @@ import { StatCard } from '@/components/StatCard';
 import {
   generateActivationHistory,
   generateLoadShiftBlocks,
+  generateUserEconomics,
 } from '@/data/generators';
 import { LoadShiftChart } from '@/components/LoadShiftChart';
-import type { ActivationRecord, LoadShiftBlock } from '@/types';
+import { UserValueChart } from '@/components/UserValueChart';
+import type {
+  ActivationRecord,
+  LoadShiftBlock,
+  UserEconomicsBlock,
+} from '@/types';
 import { useSettings } from '@/store/settingsStore';
 
 function exportCsv(activations: ActivationRecord[], label: string) {
@@ -71,6 +77,34 @@ export function Settlement() {
       ),
     [allShiftBlocks, range]
   );
+
+  const allEconomics = useMemo<UserEconomicsBlock[]>(
+    () => generateUserEconomics(365),
+    []
+  );
+  const economicsBlocks = useMemo(
+    () =>
+      allEconomics.filter(
+        (b) => b.timestamp >= range.start && b.timestamp <= range.end
+      ),
+    [allEconomics, range]
+  );
+
+  const totalUserCredit = economicsBlocks.reduce(
+    (s, b) => s + b.userCreditEur,
+    0
+  );
+  const totalGridioRetained = economicsBlocks.reduce(
+    (s, b) => s + b.gridioRetainedEur,
+    0
+  );
+  const avgCreditPerEv = totalUserCredit / 847;
+  const gridioSharePct =
+    totalUserCredit + totalGridioRetained > 0
+      ? Math.round(
+          (totalGridioRetained / (totalUserCredit + totalGridioRetained)) * 100
+        )
+      : 60;
 
   const capacityRevenue = activations.reduce(
     (s, a) => s + a.capacityPaymentEur,
@@ -163,6 +197,36 @@ export function Settlement() {
           />
         </div>
       )}
+
+      {/* User Value panel */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          EV User Value
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard
+            label="Bill Credits Distributed"
+            value={`€${Math.round(totalUserCredit).toLocaleString()}`}
+            unit=""
+            trend="credited to EV users"
+          />
+          <StatCard
+            label="Avg. Credit per Vehicle"
+            value={`€${Math.round(avgCreditPerEv)}`}
+            unit="/ vehicle"
+          />
+          <StatCard
+            label="Gridio Share"
+            value={`€${Math.round(totalGridioRetained).toLocaleString()}`}
+            unit=""
+            trend={`${gridioSharePct}% of gross savings`}
+          />
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-xs text-muted-foreground mb-3">Value split</p>
+          <UserValueChart blocks={economicsBlocks} timeWindow={timeWindow} />
+        </div>
+      </div>
 
       {!settings.flex2Enabled && shiftBlocks.length > 0 && (
         <div className="bg-card border border-border rounded-lg p-6">
