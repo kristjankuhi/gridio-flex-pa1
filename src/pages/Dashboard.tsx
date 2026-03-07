@@ -12,6 +12,7 @@ import {
   generateHistoricLoad,
   generateFleetStats,
   generateMarketSplitStats,
+  generateLoadShiftBlocks,
 } from '@/data/generators';
 import { useSettings } from '@/store/settingsStore';
 import type { FleetStats, SoCBlock, BidBlock } from '@/types';
@@ -68,6 +69,30 @@ export function Dashboard() {
   }, [settings.flex2Enabled]);
 
   const marketStats = useMemo(() => generateMarketSplitStats(range), [range]);
+
+  const perEvStats = useMemo(() => {
+    if (settings.flex2Enabled) return null;
+    const allBlocks = generateLoadShiftBlocks(365);
+    const blocks = allBlocks.filter(
+      (b) => b.timestamp >= range.start && b.timestamp <= range.end
+    );
+    const baselineCost = blocks.reduce(
+      (s, b) => s + (b.baselineKwh * Math.max(0, b.daSpotEurMwh)) / 1000,
+      0
+    );
+    const actualCost = blocks.reduce(
+      (s, b) => s + (b.actualKwh * Math.max(0, b.daSpotEurMwh)) / 1000,
+      0
+    );
+    const savings = baselineCost - actualCost;
+    const activeEvs = 847;
+    return {
+      savingsPerEv: savings / activeEvs,
+      savingsRatePct:
+        baselineCost > 0 ? Math.round((savings / baselineCost) * 1000) / 10 : 0,
+      activeEvs,
+    };
+  }, [settings.flex2Enabled, range]);
 
   const totalReservedMw = bidBlocks
     .filter((b) => b.isAvailable)
@@ -198,6 +223,32 @@ export function Dashboard() {
               unit=""
             />
           </div>
+          {perEvStats && (
+            <div className="mt-3 space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                Per Vehicle
+              </p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                  label="Saving per EV"
+                  value={`€${Math.round(perEvStats.savingsPerEv).toLocaleString()}`}
+                  unit=""
+                  trend="vs uncontrolled baseline"
+                />
+                <StatCard
+                  label="Cost Reduction"
+                  value={perEvStats.savingsRatePct.toString()}
+                  unit="%"
+                  trend="DA charging cost"
+                />
+                <StatCard
+                  label="Opted-in Fleet"
+                  value={perEvStats.activeEvs.toLocaleString()}
+                  unit="EVs"
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
