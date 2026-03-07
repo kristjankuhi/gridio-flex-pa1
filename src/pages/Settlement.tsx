@@ -49,7 +49,7 @@ export function Settlement() {
     goNext,
     goPrev,
     isAtPresent,
-  } = usePeriodSelector('1W');
+  } = usePeriodSelector('1M');
 
   const allActivations = useMemo(() => generateActivationHistory(365), []);
   const activations = useMemo(
@@ -170,18 +170,20 @@ export function Settlement() {
         </div>
       )}
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium">Activation Log</h2>
-          <button
-            onClick={() => exportCsv(activations, range.label)}
-            className="text-xs px-3 py-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-          >
-            Download CSV
-          </button>
+      {settings.flex2Enabled && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium">Activation Log</h2>
+            <button
+              onClick={() => exportCsv(activations, range.label)}
+              className="text-xs px-3 py-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+            >
+              Download CSV
+            </button>
+          </div>
+          <ActivationTable activations={activations} />
         </div>
-        <ActivationTable activations={activations} />
-      </div>
+      )}
     </div>
   );
 }

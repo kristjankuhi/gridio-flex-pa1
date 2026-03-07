@@ -10,9 +10,7 @@ interface ActivationTableProps {
 
 export function ActivationTable({ activations }: ActivationTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<
-    'all' | 'mfrr' | 'id-balancing' | 'fcr' | 'afrr'
-  >('all');
+  const [filter, setFilter] = useState<'all' | 'mfrr' | 'id-balancing'>('all');
 
   const filtered = activations.filter(
     (a) => filter === 'all' || a.product === filter
@@ -21,7 +19,7 @@ export function ActivationTable({ activations }: ActivationTableProps) {
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        {(['all', 'mfrr', 'id-balancing', 'fcr', 'afrr'] as const).map((f) => (
+        {(['all', 'mfrr', 'id-balancing'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -31,15 +29,7 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                 : 'border-border text-muted-foreground hover:border-foreground'
             }`}
           >
-            {f === 'all'
-              ? 'All'
-              : f === 'mfrr'
-                ? 'mFRR'
-                : f === 'id-balancing'
-                  ? 'ID Balancing'
-                  : f === 'fcr'
-                    ? 'FCR'
-                    : 'aFRR'}
+            {f === 'all' ? 'All' : f === 'mfrr' ? 'mFRR R3' : 'ID Bal.'}
           </button>
         ))}
       </div>
@@ -56,10 +46,10 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                 Product
               </th>
               <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
-                Requested kW
+                Req. MW
               </th>
               <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
-                Delivered kW
+                Del. MW
               </th>
               <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
                 Duration
@@ -112,27 +102,23 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                       className={`text-xs ${
                         act.product === 'mfrr'
                           ? 'text-primary border-primary/30'
-                          : act.product === 'fcr'
-                            ? 'text-emerald-400 border-emerald-400/30'
-                            : act.product === 'afrr'
-                              ? 'text-blue-400 border-blue-400/30'
-                              : 'text-amber-400 border-amber-400/30'
+                          : 'text-amber-400 border-amber-400/30'
                       }`}
                     >
                       {act.product === 'mfrr'
-                        ? `mFRR ${act.direction ?? ''}`.trim()
-                        : act.product === 'fcr'
-                          ? 'FCR'
-                          : act.product === 'afrr'
-                            ? 'aFRR'
-                            : 'ID Balancing'}
+                        ? `mFRR R3 ${act.direction ?? ''}`.trim()
+                        : 'ID Bal.'}
                     </Badge>
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">
-                    {act.requestedKw?.toLocaleString() ?? '—'}
+                    {act.requestedKw != null
+                      ? (act.requestedKw / 1000).toFixed(2)
+                      : '—'}
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">
-                    {act.deliveredKw?.toLocaleString() ?? '—'}
+                    {act.deliveredKw != null
+                      ? (act.deliveredKw / 1000).toFixed(2)
+                      : '—'}
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">
                     {act.durationMin} min

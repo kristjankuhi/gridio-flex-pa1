@@ -447,9 +447,14 @@ function generateLoadProfile(
     let flexibleKwh: number;
     if (applyPriceShift) {
       // Gridio shifts flexible charging toward cheap hours.
-      // Reference price: midday average (solar minimum in summer, grid reference in winter).
-      // shiftFactor > 1 on cheap hours (add load), < 1 on expensive hours (reduce load).
-      const refPrice = basePriceForHour(12, month, isWeekend);
+      // Reference = daily average price for this month/day-type so that hours above
+      // average get reduced load (negative delta) and hours below average get
+      // increased load (positive delta) — producing bars in both directions.
+      const dailyAvgPrice =
+        Array.from({ length: 24 }, (_, h) =>
+          basePriceForHour(h, month, isWeekend)
+        ).reduce((s, p) => s + p, 0) / 24;
+      const refPrice = dailyAvgPrice;
       const effectivePrice = Math.max(5, priceEurMwh); // avoid divide-by-zero on negatives
       const shiftFactor = Math.max(
         0.35,
@@ -664,9 +669,9 @@ export function generateBidTimeline(date: Date): BidBlock[] {
   const blocks: BidBlock[] = [];
   let seed = date.getTime() % 3333;
 
+  // FCR and aFRR excluded from prototype — fleet response time (p90: 8.6–9.4 min)
+  // is incompatible with FCR (<30s) and aFRR (<5 min) requirements.
   const products: FlexProduct[] = ['mfrr', 'id-balancing'];
-  if (seededRandom(seed++) > 0.4) products.push('fcr');
-  if (seededRandom(seed++) > 0.5) products.push('afrr');
 
   for (const product of products) {
     const defaults = PRODUCT_DEFAULTS[product];
@@ -759,15 +764,20 @@ export function generateActivationHistory(
         ? 30
         : 60 + Math.floor(seededRandom(seed++) * 120);
       const numBlocks = Math.round(durationMin / 15);
-      const baselinePerBlock = 60 + seededRandom(seed++) * 80;
+
+      // Bid economics (declared before baselinePerBlock — reservedMw needed for mFRR baseline)
+      const reservedMw = isMfrr ? 1 + seededRandom(seed++) * 1.5 : 0;
+      const capacityPriceEurMwH = isMfrr ? 4 + seededRandom(seed++) * 4 : 0;
+
+      // For mFRR: baseline energy must be consistent with the reserved MW capacity.
+      // reservedMw × 1000 kW × 0.25h = kWh per 15-min block. Add ±10% noise.
+      const baselinePerBlock = isMfrr
+        ? reservedMw * 1000 * 0.25 * (1 + (seededRandom(seed++) - 0.5) * 0.2)
+        : 60 + seededRandom(seed++) * 80;
 
       // shiftRatio sign MUST match direction: up → reduce load → negative, down → increase → positive
       const shiftMagnitude = 0.25 + seededRandom(seed++) * 0.35;
       const shiftRatio = direction === 'up' ? -shiftMagnitude : shiftMagnitude;
-
-      // Bid economics
-      const reservedMw = isMfrr ? 1 + seededRandom(seed++) * 1.5 : 0;
-      const capacityPriceEurMwH = isMfrr ? 4 + seededRandom(seed++) * 4 : 0;
       const energyBidPrice = isMfrr
         ? 60 + seededRandom(seed++) * 60
         : 40 + seededRandom(seed++) * 40;

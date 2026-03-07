@@ -54,12 +54,22 @@ export function TopNav() {
           </nav>
         </div>
         <div className="flex items-center gap-3">
+          <Badge
+            variant="outline"
+            className={`text-xs font-medium ${
+              flex2Enabled
+                ? 'border-blue-500/50 text-blue-400'
+                : 'border-primary/50 text-primary'
+            }`}
+          >
+            {flex2Enabled ? 'Flex 2.0' : 'Flex 1.0'}
+          </Badge>
           <SettingsPanel />
           <Badge
             variant="secondary"
             className="text-xs font-normal text-muted-foreground"
           >
-            v1.0 · Simulated data
+            Simulated data
           </Badge>
         </div>
       </div>

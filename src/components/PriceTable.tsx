@@ -25,7 +25,7 @@ export function PriceTable({ rows, onInputChange, onPaste }: PriceTableProps) {
               Time
             </th>
             <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground">
-              Current (€/MWh)
+              DA Signal (€/MWh)
             </th>
             <th className="text-right py-2 px-4 text-xs font-medium text-muted-foreground w-40">
               New Price (€/MWh)
