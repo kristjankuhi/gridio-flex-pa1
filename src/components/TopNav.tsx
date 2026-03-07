@@ -51,6 +51,18 @@ export function TopNav() {
             >
               Settlement
             </NavLink>
+            <NavLink
+              to="/ev-users"
+              className={({ isActive }) =>
+                `text-sm transition-colors pb-0.5 ${
+                  isActive
+                    ? 'text-foreground border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`
+              }
+            >
+              EV Users
+            </NavLink>
           </nav>
         </div>
         <div className="flex items-center gap-3">
