@@ -286,6 +286,43 @@ export function FleetChart({
               />
             )}
 
+            {/* Day boundary markers (1W view) — D-6 … D labels at each midnight */}
+            {timeWindow === '1W' &&
+              (() => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const todayTs = today.getTime();
+                const boundaries: { dLabel: string; xLabel: string }[] = [];
+                const d = new Date(range.start);
+                d.setHours(0, 0, 0, 0);
+                // Advance to first midnight at or after range.start
+                if (d.getTime() < range.start.getTime())
+                  d.setDate(d.getDate() + 1);
+                while (d <= range.end) {
+                  const diff = Math.round((todayTs - d.getTime()) / 86400000);
+                  const dLabel =
+                    diff === 0 ? 'D' : diff > 0 ? `D-${diff}` : `D+${-diff}`;
+                  boundaries.push({
+                    dLabel,
+                    xLabel: format(d, 'EEE HH:mm'),
+                  });
+                  d.setDate(d.getDate() + 1);
+                }
+                return boundaries.map(({ dLabel, xLabel }) => (
+                  <ReferenceLine
+                    key={xLabel}
+                    x={xLabel}
+                    stroke="rgba(255,255,255,0.12)"
+                    label={{
+                      value: dLabel,
+                      fill: 'rgba(255,255,255,0.28)',
+                      fontSize: 9,
+                      position: 'top',
+                    }}
+                  />
+                ));
+              })()}
+
             {/* Now marker */}
             <ReferenceLine
               x={nowLabel}
