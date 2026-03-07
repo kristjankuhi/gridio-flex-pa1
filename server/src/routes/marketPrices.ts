@@ -57,6 +57,7 @@ marketPricesRoutes.openapi(
       };
     });
 
+    c.header('Cache-Control', 'public, max-age=3600');
     return c.json(withRealDA);
   }
 );

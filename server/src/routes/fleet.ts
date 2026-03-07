@@ -49,7 +49,10 @@ fleetRoutes.openapi(
       },
     },
   }),
-  (c) => c.json(generateFleetStats())
+  (c) => {
+    c.header('Cache-Control', 'public, max-age=30');
+    return c.json(generateFleetStats());
+  }
 );
 
 fleetRoutes.openapi(
@@ -80,6 +83,7 @@ fleetRoutes.openapi(
     const forecast = generateForecastLoad(daysAhead);
     const allBlocks = applyRealPrices([...historic, ...forecast]);
 
+    c.header('Cache-Control', 'public, max-age=30');
     return c.json({
       window,
       simulatedNow: simulatedNow.toISOString(),
@@ -129,6 +133,7 @@ fleetRoutes.openapi(
       (new Date(to).getTime() - new Date(from).getTime()) / 3_600_000;
     const evCount = AREA_EV_COUNTS[area] ?? 8382;
     const factor = evCount / 8382;
+    c.header('Cache-Control', 'public, max-age=60');
     return c.json({
       daLoadKwh: Math.round(hours * 420 * factor),
       daSavingsEur: Math.round(hours * 18 * factor),
