@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
 import { requireScope } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { generateBidTimeline } from '@/data/generators';
 import { getBids, saveBids } from '../store/bidStore';
 import {
@@ -58,10 +59,11 @@ bidsRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/bids',
-    middleware: [requireScope('write')] as const,
+    middleware: [requireScope('write'), idempotencyMiddleware] as const,
     tags: ['Bids'],
     summary: 'Save bid timeline',
-    description: 'Saves a new bid timeline for the given date.',
+    description:
+      'Saves a new bid timeline for the given date. Provide an `Idempotency-Key: <uuid>` header to safely retry on network failures. Duplicate requests with the same key return the original response within 24 hours with an `Idempotent-Replayed: true` header.',
     request: {
       body: {
         content: { 'application/json': { schema: SaveBidsBodySchema } },

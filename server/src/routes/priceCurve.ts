@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { generateBasePriceCurve } from '@/data/generators';
 import { applyRealPrices } from '../services/priceService';
 import { requireScope } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import {
   PriceBlockSchema,
   PriceCurveVersionSchema,
@@ -116,11 +117,11 @@ priceCurveRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/price-curve/versions',
-    middleware: [requireScope('write')] as const,
+    middleware: [requireScope('write'), idempotencyMiddleware] as const,
     tags: ['Price Curve'],
     summary: 'Save a new price curve version',
     description:
-      'Saves the provided price curve as the new active version for that date. Previous active version for the same date is retained in history.',
+      'Saves the provided price curve as the new active version for that date. Previous active version for the same date is retained in history. Provide an `Idempotency-Key: <uuid>` header to safely retry on network failures. Duplicate requests with the same key return the original response within 24 hours with an `Idempotent-Replayed: true` header.',
     request: {
       body: {
         content: { 'application/json': { schema: SaveVersionBodySchema } },
@@ -171,11 +172,11 @@ priceCurveRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/price-curve/versions/{id}/restore',
-    middleware: [requireScope('write')] as const,
+    middleware: [requireScope('write'), idempotencyMiddleware] as const,
     tags: ['Price Curve'],
     summary: 'Restore a previous version',
     description:
-      'Sets the specified version as the active price curve for its date.',
+      'Sets the specified version as the active price curve for its date. Provide an `Idempotency-Key: <uuid>` header to safely retry on network failures. Duplicate requests with the same key return the original response within 24 hours with an `Idempotent-Replayed: true` header.',
     request: {
       params: z.object({ id: z.string() }),
     },
