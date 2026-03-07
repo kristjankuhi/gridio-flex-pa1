@@ -234,18 +234,16 @@ export function generateFleetStats(area: MarketArea = 'global'): FleetStats {
     hour >= 22 || hour < 6 ? 0.85 : hour >= 9 && hour < 16 ? 0.4 : 0.65;
   const pluggedInCount = Math.round(evCount * pluggedInRatio);
   const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
-  const avgBatteryKwh = 14.7;
-  const upHeadroomKw = Math.round(
-    pluggedInCount * ((avgSoC - 20) / 100) * avgBatteryKwh * 4
-  );
-  const downHeadroomKw = Math.round(
-    pluggedInCount * ((95 - avgSoC) / 100) * avgBatteryKwh * 4
-  );
 
-  const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
+  // Power-based headroom: active chargers × charger power (not energy/time)
+  const activeChargingCount = Math.round(pluggedInCount * 0.8);
+  const upHeadroomKw = Math.round(activeChargingCount * AVG_CHARGER_KW);
+  const downHeadroomKw = Math.round(
+    (pluggedInCount - activeChargingCount) * AVG_CHARGER_KW
+  );
 
   return {
-    totalCapacityKwh: Math.round(evCount * avgBatteryKwh),
+    totalCapacityKwh: Math.round(evCount * AVG_BATTERY_KWH),
     availableFlexibilityKw: upHeadroomKw,
     activeEvCount: pluggedInCount,
     avgStateOfChargePct: avgSoC,

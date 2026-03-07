@@ -7,6 +7,10 @@ import {
   generateBaselineLoad,
   generateLoadShiftBlocks,
   generatePriceReference,
+  generateSoCCurve,
+  generateUserEconomics,
+  generateDepartureCompliance,
+  generateOptInStats,
 } from './generators';
 import {
   AREA_EV_COUNTS,
@@ -184,5 +188,106 @@ describe('area-aware generators', () => {
     const beAvg = be.reduce((s, b) => s + b.daSpotEurMwh, 0) / be.length;
     const no2Avg = no2.reduce((s, b) => s + b.daSpotEurMwh, 0) / no2.length;
     expect(no2Avg).toBeLessThan(beAvg);
+  });
+});
+
+describe('generateFleetStats — EV user model', () => {
+  it('upHeadroomKw is plausible for a ~847-EV fleet (500–5000 kW)', () => {
+    const stats = generateFleetStats();
+    expect(stats.upHeadroomKw).toBeGreaterThan(500);
+    expect(stats.upHeadroomKw).toBeLessThan(5000);
+  });
+
+  it('totalCapacityKwh is approximately 847 × 55 kWh', () => {
+    const stats = generateFleetStats();
+    expect(stats.totalCapacityKwh).toBeGreaterThan(40000);
+    expect(stats.totalCapacityKwh).toBeLessThan(50000);
+  });
+});
+
+describe('generateSoCCurve — EV user model', () => {
+  it('dynamicFloorPct is in the valid SoC range [20, 85] for all blocks', () => {
+    const blocks = generateSoCCurve(new Date());
+    blocks.forEach((b) => {
+      expect(b.dynamicFloorPct).toBeGreaterThanOrEqual(20);
+      expect(b.dynamicFloorPct).toBeLessThanOrEqual(85);
+    });
+  });
+
+  it('dynamicFloorPct ramps up toward 07:30 on a weekday (Monday 2026-03-09)', () => {
+    const monday = new Date('2026-03-09T00:00:00');
+    const blocks = generateSoCCurve(monday);
+    const at0430 = blocks.find(
+      (b) => b.timestamp.getHours() === 4 && b.timestamp.getMinutes() === 30
+    );
+    const at0700 = blocks.find(
+      (b) => b.timestamp.getHours() === 7 && b.timestamp.getMinutes() === 0
+    );
+    expect(at0430).toBeDefined();
+    expect(at0700).toBeDefined();
+    expect(at0700!.dynamicFloorPct).toBeGreaterThan(at0430!.dynamicFloorPct);
+  });
+});
+
+describe('generateUserEconomics', () => {
+  it('userCreditEur is non-negative for all blocks', () => {
+    const blocks = generateUserEconomics(7);
+    blocks.forEach((b) => {
+      expect(b.userCreditEur).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  it('mfrrBonusEur is non-negative for all blocks', () => {
+    const blocks = generateUserEconomics(7);
+    blocks.forEach((b) => {
+      expect(b.mfrrBonusEur).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  it('userCreditEur >= mfrrBonusEur (user credit includes the bonus)', () => {
+    const blocks = generateUserEconomics(7);
+    blocks.forEach((b) => {
+      expect(b.userCreditEur).toBeGreaterThanOrEqual(b.mfrrBonusEur);
+    });
+  });
+});
+
+describe('generateDepartureCompliance', () => {
+  it('compliance rates are in realistic range for both segments', () => {
+    const blocks = generateDepartureCompliance(30);
+    blocks.forEach((b) => {
+      expect(b.commuterCompliancePct).toBeGreaterThanOrEqual(90);
+      expect(b.commuterCompliancePct).toBeLessThanOrEqual(100);
+      expect(b.flexibleCompliancePct).toBeGreaterThanOrEqual(85);
+      expect(b.flexibleCompliancePct).toBeLessThanOrEqual(100);
+    });
+  });
+
+  it('reasons array has at most 3 entries per day', () => {
+    const blocks = generateDepartureCompliance(30);
+    blocks.forEach((b) => {
+      expect(b.reasons.length).toBeLessThanOrEqual(3);
+    });
+  });
+});
+
+describe('generateOptInStats', () => {
+  it('returns monthsBack + 1 blocks', () => {
+    const blocks = generateOptInStats(12);
+    expect(blocks).toHaveLength(13);
+  });
+
+  it('opt-in rate grows over time', () => {
+    const blocks = generateOptInStats(12);
+    const first = blocks[0].optInRatePct;
+    const last = blocks[blocks.length - 1].optInRatePct;
+    expect(last).toBeGreaterThan(first);
+  });
+
+  it('fleet opt-in rate is higher than consumer rate', () => {
+    const blocks = generateOptInStats(12);
+    blocks.forEach((b) => {
+      expect(b.fleetOptInPct).toBeGreaterThan(b.consumerOptInPct);
+    });
   });
 });
