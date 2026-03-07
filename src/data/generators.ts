@@ -669,9 +669,9 @@ export function generateBidTimeline(date: Date): BidBlock[] {
   const blocks: BidBlock[] = [];
   let seed = date.getTime() % 3333;
 
+  // FCR and aFRR excluded from prototype — fleet response time (p90: 8.6–9.4 min)
+  // is incompatible with FCR (<30s) and aFRR (<5 min) requirements.
   const products: FlexProduct[] = ['mfrr', 'id-balancing'];
-  if (seededRandom(seed++) > 0.4) products.push('fcr');
-  if (seededRandom(seed++) > 0.5) products.push('afrr');
 
   for (const product of products) {
     const defaults = PRODUCT_DEFAULTS[product];

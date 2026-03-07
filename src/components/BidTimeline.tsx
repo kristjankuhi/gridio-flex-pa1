@@ -2,11 +2,10 @@ import { useState, useCallback } from 'react';
 import { startOfDay } from 'date-fns';
 import type { BidBlock, FlexProduct } from '@/types';
 
+// FCR (<30s) and aFRR (<5 min) excluded: fleet p90 response 8.6–9.4 min — architecturally incompatible.
 const PRODUCTS: { key: FlexProduct; label: string; color: string }[] = [
-  { key: 'fcr', label: 'FCR', color: '#10b981' },
-  { key: 'afrr', label: 'aFRR', color: '#3b82f6' },
-  { key: 'mfrr', label: 'mFRR', color: '#8b5cf6' },
-  { key: 'id-balancing', label: 'ID Balancing', color: '#f59e0b' },
+  { key: 'mfrr', label: 'mFRR R3', color: '#8b5cf6' },
+  { key: 'id-balancing', label: 'ID Bal.', color: '#f59e0b' },
 ];
 
 interface BidTimelineProps {
