@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tool/session artifacts
+.claude/
+.playwright-mcp/
+control_room.png
