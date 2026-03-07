@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { ActivationRecord } from '@/data/generators';
+import type { ActivationRecord } from '@/types';
 
 interface ActivationTableProps {
   activations: ActivationRecord[];
@@ -10,16 +10,16 @@ interface ActivationTableProps {
 
 export function ActivationTable({ activations }: ActivationTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'price-curve' | 'mfrr'>('all');
+  const [filter, setFilter] = useState<'all' | 'id-balancing' | 'mfrr'>('all');
 
   const filtered = activations.filter(
-    (a) => filter === 'all' || a.type === filter
+    (a) => filter === 'all' || a.product === filter
   );
 
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        {(['all', 'price-curve', 'mfrr'] as const).map((f) => (
+        {(['all', 'id-balancing', 'mfrr'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -29,7 +29,11 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                 : 'border-border text-muted-foreground hover:border-foreground'
             }`}
           >
-            {f === 'all' ? 'All' : f === 'price-curve' ? 'Price curve' : 'mFRR'}
+            {f === 'all'
+              ? 'All'
+              : f === 'id-balancing'
+                ? 'ID Balancing'
+                : 'mFRR'}
           </button>
         ))}
       </div>
@@ -90,11 +94,11 @@ export function ActivationTable({ activations }: ActivationTableProps) {
                   <td className="py-2 px-4">
                     <Badge
                       variant="secondary"
-                      className={`text-xs ${act.type === 'mfrr' ? 'text-primary border-primary/30' : ''}`}
+                      className={`text-xs ${act.product === 'mfrr' ? 'text-primary border-primary/30' : ''}`}
                     >
-                      {act.type === 'mfrr'
+                      {act.product === 'mfrr'
                         ? `mFRR ${act.direction}`
-                        : 'Price curve'}
+                        : 'ID Balancing'}
                     </Badge>
                   </td>
                   <td className="py-2 px-4 text-right font-mono text-xs">

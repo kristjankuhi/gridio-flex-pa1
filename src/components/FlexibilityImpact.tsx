@@ -40,10 +40,10 @@ export function FlexibilityImpact({
     0
   );
   const totalSavings = activations
-    .filter((a) => a.type === 'price-curve')
+    .filter((a) => a.product === 'id-balancing')
     .reduce((s, a) => s + a.revenueEur, 0);
   const totalMfrrRevenue = activations
-    .filter((a) => a.type === 'mfrr')
+    .filter((a) => a.product === 'mfrr')
     .reduce((s, a) => s + a.revenueEur, 0);
 
   const bucketLabels = buildTimeBuckets(range, timeWindow);
@@ -78,7 +78,7 @@ export function FlexibilityImpact({
     {
       label: 'mFRR Revenue',
       value: `€${Math.round(totalMfrrRevenue).toLocaleString()}`,
-      sub: `${activations.filter((a) => a.type === 'mfrr').length} activations`,
+      sub: `${activations.filter((a) => a.product === 'mfrr').length} activations`,
     },
   ];
 

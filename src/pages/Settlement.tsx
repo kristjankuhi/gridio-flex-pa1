@@ -3,10 +3,8 @@ import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { ActivationTable } from '@/components/ActivationTable';
 import { StatCard } from '@/components/StatCard';
-import {
-  generateActivationHistory,
-  type ActivationRecord,
-} from '@/data/generators';
+import { generateActivationHistory } from '@/data/generators';
+import type { ActivationRecord } from '@/types';
 
 function exportCsv(activations: ActivationRecord[], label: string) {
   const header =
@@ -14,7 +12,7 @@ function exportCsv(activations: ActivationRecord[], label: string) {
   const rows = activations.map((a) =>
     [
       a.timestamp.toISOString(),
-      a.type,
+      a.product,
       a.direction ?? '',
       a.requestedKw ?? '',
       a.deliveredKw ?? '',
@@ -61,10 +59,10 @@ export function Settlement() {
     0
   );
   const savings = activations
-    .filter((a) => a.type === 'price-curve')
+    .filter((a) => a.product === 'id-balancing')
     .reduce((s, a) => s + a.revenueEur, 0);
   const mfrrRevenue = activations
-    .filter((a) => a.type === 'mfrr')
+    .filter((a) => a.product === 'mfrr')
     .reduce((s, a) => s + a.revenueEur, 0);
   const total = savings + mfrrRevenue;
 
