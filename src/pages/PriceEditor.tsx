@@ -19,10 +19,11 @@ import { Button } from '@/components/ui/button';
 import { PriceTable } from '@/components/PriceTable';
 import { SimulationChart } from '@/components/SimulationChart';
 import { VersionHistoryPanel } from '@/components/VersionHistoryPanel';
+import { BidTimeline } from '@/components/BidTimeline';
 import { usePriceTableState } from '@/hooks/usePriceTableState';
 import { api } from '@/api/client';
 import { useSettings } from '@/store/settingsStore';
-import type { SimulationResult, PriceReferenceBlock } from '@/types';
+import type { SimulationResult, PriceReferenceBlock, BidBlock } from '@/types';
 
 export function PriceEditor() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -33,12 +34,34 @@ export function PriceEditor() {
 
   const { settings } = useSettings();
   const [refPrices, setRefPrices] = useState<PriceReferenceBlock[]>([]);
+  const [bidBlocks, setBidBlocks] = useState<BidBlock[]>([]);
   const [showDA, setShowDA] = useState(true);
   const [showID, setShowID] = useState(false);
   const [showMFRR, setShowMFRR] = useState(false);
 
   const { rows, setInput, clearInputs, getEditedBlocks, hasChanges } =
     usePriceTableState(selectedDate);
+
+  useEffect(() => {
+    if (!settings.flex2Enabled) return;
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    api.bids
+      .get(dateStr)
+      .then((blocks) =>
+        setBidBlocks(
+          blocks.map((b) => ({
+            ...b,
+            timestamp: new Date(b.timestamp as unknown as string),
+          }))
+        )
+      )
+      .catch(console.error);
+  }, [selectedDate, settings.flex2Enabled]);
+
+  async function handleSaveBids(blocks: BidBlock[]) {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    await api.bids.save(dateStr, blocks);
+  }
 
   useEffect(() => {
     if (settings.flex2Enabled) return; // Flex 2.0 mode uses bid manager instead
@@ -121,9 +144,13 @@ export function PriceEditor() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold mb-1">Price Editor</h1>
+        <h1 className="text-xl font-semibold mb-1">
+          {settings.flex2Enabled ? 'Bid Manager' : 'Price Curve'}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Adjust the price curve to shift EV charging load
+          {settings.flex2Enabled
+            ? 'Submit availability windows and bid prices for grid balancing products'
+            : 'Adjust the price curve to shift EV charging load'}
         </p>
       </div>
 
@@ -256,52 +283,71 @@ export function PriceEditor() {
         </div>
       )}
 
-      <PriceTable rows={rows} onInputChange={setInput} onPaste={handlePaste} />
-
-      <div className="space-y-6">
-        <div className="flex items-center justify-between border-t border-border pt-6">
-          <Button
-            variant="ghost"
-            onClick={handleDiscard}
-            disabled={!hasChanges && !simulationResult}
-          >
-            Discard changes
-          </Button>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => void handleSimulate()}
-              disabled={!hasChanges}
-            >
-              Simulate →
-            </Button>
-            <Button
-              onClick={() => void handleSave()}
-              disabled={!hasChanges}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              Save & Activate
-            </Button>
+      {settings.flex2Enabled ? (
+        bidBlocks.length > 0 ? (
+          <BidTimeline
+            blocks={bidBlocks}
+            onSave={(b) => void handleSaveBids(b)}
+          />
+        ) : (
+          <div className="text-sm text-muted-foreground py-8 text-center">
+            Loading bid timeline…
           </div>
-        </div>
+        )
+      ) : (
+        <>
+          <PriceTable
+            rows={rows}
+            onInputChange={setInput}
+            onPaste={handlePaste}
+          />
 
-        {simulationResult && (
-          <div className="bg-card border border-border rounded-lg p-6">
-            <SimulationChart result={simulationResult} />
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
-              <Button variant="ghost" onClick={handleDiscard}>
-                Discard
-              </Button>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-t border-border pt-6">
               <Button
-                onClick={() => void handleSave()}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                variant="ghost"
+                onClick={handleDiscard}
+                disabled={!hasChanges && !simulationResult}
               >
-                Save & Activate
+                Discard changes
               </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => void handleSimulate()}
+                  disabled={!hasChanges}
+                >
+                  Simulate →
+                </Button>
+                <Button
+                  onClick={() => void handleSave()}
+                  disabled={!hasChanges}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Save & Activate
+                </Button>
+              </div>
             </div>
+
+            {simulationResult && (
+              <div className="bg-card border border-border rounded-lg p-6">
+                <SimulationChart result={simulationResult} />
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
+                  <Button variant="ghost" onClick={handleDiscard}>
+                    Discard
+                  </Button>
+                  <Button
+                    onClick={() => void handleSave()}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Save & Activate
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <VersionHistoryPanel
         open={historyOpen}
