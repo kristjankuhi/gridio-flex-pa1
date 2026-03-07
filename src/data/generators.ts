@@ -12,6 +12,7 @@ import type {
   LoadShiftBlock,
   UserEconomicsBlock,
   DepartureComplianceBlock,
+  OptInStatsBlock,
 } from '../types';
 
 // Seeded pseudo-random for reproducibility in demos
@@ -831,6 +832,50 @@ export function generateDepartureCompliance(
       flexibleCompliancePct,
       nonComplianceCount,
       reasons,
+    });
+  }
+  return blocks;
+}
+
+export function generateOptInStats(monthsBack: number): OptInStatsBlock[] {
+  const blocks: OptInStatsBlock[] = [];
+  const now = new Date();
+
+  for (let m = monthsBack; m >= 0; m--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    const seed = date.getTime() % 6666;
+
+    // Fleet-wide rate grows 71% → 84% over monthsBack months
+    const growthFactor = (monthsBack - m) / Math.max(monthsBack, 1);
+    const baseRate = 71 + growthFactor * 13;
+    const noise = (seededRandom(seed) - 0.5) * 1.5;
+    const optInRatePct =
+      Math.round(Math.min(90, Math.max(68, baseRate + noise)) * 10) / 10;
+
+    // Consumer slightly below fleet average; company fleet higher (often mandated)
+    const consumerOptInPct =
+      Math.round(
+        Math.min(
+          88,
+          Math.max(65, optInRatePct - 2 + seededRandom(seed + 1) * 2)
+        ) * 10
+      ) / 10;
+    const fleetOptInPct =
+      Math.round(
+        Math.min(96, Math.max(78, optInRatePct + 7 + seededRandom(seed + 2))) *
+          10
+      ) / 10;
+
+    const newEnrollments = Math.round(5 + seededRandom(seed + 3) * 20);
+    const churned = Math.round(seededRandom(seed + 4) * 6);
+
+    blocks.push({
+      month: date,
+      optInRatePct,
+      consumerOptInPct,
+      fleetOptInPct,
+      newEnrollments,
+      churned,
     });
   }
   return blocks;
