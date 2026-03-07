@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
+import { requireScope } from '../middleware/auth';
 import { runSimulation } from '@/data/simulation';
 import {
   SimulationRequestSchema,
@@ -14,6 +15,7 @@ simulationRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/simulation/run',
+    middleware: [requireScope('write')] as const,
     tags: ['Simulation'],
     summary: 'Run load-shift simulation',
     description:

@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { generateBasePriceCurve } from '@/data/generators';
 import { applyRealPrices } from '../services/priceService';
+import { requireScope } from '../middleware/auth';
 import {
   PriceBlockSchema,
   PriceCurveVersionSchema,
@@ -98,6 +99,7 @@ priceCurveRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/price-curve/versions',
+    middleware: [requireScope('write')] as const,
     tags: ['Price Curve'],
     summary: 'Save a new price curve version',
     description:
@@ -140,6 +142,7 @@ priceCurveRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/price-curve/versions/{id}/restore',
+    middleware: [requireScope('write')] as const,
     tags: ['Price Curve'],
     summary: 'Restore a previous version',
     description:
