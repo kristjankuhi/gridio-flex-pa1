@@ -130,5 +130,8 @@ simulationRoutes.openapi(
       },
     },
   }),
-  (c) => c.json({ simulatedNow: getSimulatedNow().toISOString() })
+  (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json({ simulatedNow: getSimulatedNow().toISOString() });
+  }
 );
