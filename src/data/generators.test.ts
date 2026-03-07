@@ -4,6 +4,8 @@ import {
   generateHistoricLoad,
   generateForecastLoad,
   generateBasePriceCurve,
+  generateBaselineLoad,
+  generateLoadShiftBlocks,
 } from './generators';
 describe('generateFleetStats', () => {
   it('returns plausible fleet stats', () => {
@@ -56,6 +58,52 @@ describe('generateBasePriceCurve', () => {
     blocks.forEach((b) => {
       expect(b.priceEurMwh).toBeGreaterThanOrEqual(0);
       expect(b.priceEurMwh).toBeLessThanOrEqual(500);
+    });
+  });
+});
+
+describe('generateBaselineLoad', () => {
+  it('returns same number of blocks as generateHistoricLoad for same daysBack', () => {
+    const baseline = generateBaselineLoad(1);
+    const managed = generateHistoricLoad(1);
+    expect(baseline.length).toBe(managed.length);
+  });
+
+  it('all blocks have non-negative volumes', () => {
+    const blocks = generateBaselineLoad(1);
+    blocks.forEach((b) => {
+      expect(b.flexibleKwh).toBeGreaterThanOrEqual(0);
+      expect(b.nonFlexibleKwh).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  it('baseline has same timestamps as managed', () => {
+    const baseline = generateBaselineLoad(1);
+    const managed = generateHistoricLoad(1);
+    baseline.forEach((b, i) => {
+      expect(b.timestamp.getTime()).toBe(managed[i].timestamp.getTime());
+    });
+  });
+});
+
+describe('generateLoadShiftBlocks', () => {
+  it('returns same number of blocks as generateHistoricLoad', () => {
+    const shift = generateLoadShiftBlocks(1);
+    const managed = generateHistoricLoad(1);
+    expect(shift.length).toBe(managed.length);
+  });
+
+  it('deltaKwh = actualKwh - baselineKwh for each block', () => {
+    const shift = generateLoadShiftBlocks(1);
+    shift.forEach((b) => {
+      expect(b.deltaKwh).toBe(b.actualKwh - b.baselineKwh);
+    });
+  });
+
+  it('all blocks have timestamps', () => {
+    const shift = generateLoadShiftBlocks(1);
+    shift.forEach((b) => {
+      expect(b.timestamp).toBeInstanceOf(Date);
     });
   });
 });
