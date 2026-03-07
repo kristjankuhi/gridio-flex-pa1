@@ -6,6 +6,7 @@ import {
   generateBasePriceCurve,
   generateBaselineLoad,
   generateLoadShiftBlocks,
+  generatePriceReference,
 } from './generators';
 import {
   AREA_EV_COUNTS,
@@ -152,5 +153,36 @@ describe('areaConfig', () => {
     ALL_AREAS.forEach((a) => {
       expect(AREA_PRICE_FACTOR[a]).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('area-aware generators', () => {
+  it('generateFleetStats scales activeEvCount by area', () => {
+    const global = generateFleetStats('global');
+    const be = generateFleetStats('BE');
+    expect(be.activeEvCount).toBeLessThan(global.activeEvCount);
+  });
+
+  it('generateFleetStats totalCapacityKwh scales with area EV count', () => {
+    const global = generateFleetStats('global');
+    const be = generateFleetStats('BE');
+    expect(be.totalCapacityKwh / global.totalCapacityKwh).toBeCloseTo(
+      338 / 847,
+      1
+    );
+  });
+
+  it('generateHistoricLoad scales flexibleKwh by area', () => {
+    const globalBlocks = generateHistoricLoad(1, 'global');
+    const no2Blocks = generateHistoricLoad(1, 'NO2');
+    expect(no2Blocks[0].flexibleKwh).toBeLessThan(globalBlocks[0].flexibleKwh);
+  });
+
+  it('generatePriceReference applies price factor per area', () => {
+    const be = generatePriceReference(new Date(), 'BE');
+    const no2 = generatePriceReference(new Date(), 'NO2');
+    const beAvg = be.reduce((s, b) => s + b.daSpotEurMwh, 0) / be.length;
+    const no2Avg = no2.reduce((s, b) => s + b.daSpotEurMwh, 0) / no2.length;
+    expect(no2Avg).toBeLessThan(beAvg);
   });
 });
