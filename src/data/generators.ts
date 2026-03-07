@@ -243,10 +243,55 @@ export function generateFleetStats(): FleetStats {
   };
 }
 
-const AVG_BATTERY_KWH = 14.7; // 12_450 kWh / 847 EVs
+const AVG_BATTERY_KWH = 55; // Renault Zoe / early Model 3 mix — realistic modern EV
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const AVG_CHARGER_KW = 7.4; // standard home Type 2 AC charger
 const FLEET_SIZE = 847;
-const MIN_SOC_BUFFER = 20; // % guaranteed minimum for drivers
-const MAX_SOC = 95; // % practical ceiling
+const MIN_SOC_BUFFER = 20; // summer base; seasonalMinBuffer() overrides per month
+const MAX_SOC = 95;
+
+// Seasonal min SoC buffer: winter cold reduces range, users need higher starting SoC
+function seasonalMinBuffer(month: number): number {
+  if (month >= 10 || month <= 1) return 25; // Nov–Feb: cold weather
+  if ((month >= 2 && month <= 3) || (month >= 8 && month <= 9)) return 22; // spring/autumn
+  return 20; // May–Aug: summer
+}
+
+// Departure target SoC: higher in winter (range anxiety)
+function seasonalTargetSoC(month: number): number {
+  return month >= 10 || month <= 1 ? 85 : 80;
+}
+
+// Dynamic SoC floor: rises from minBuffer toward targetSoC in the 3h before departure
+// Mixed fleet: 70% commuter (depart 07:30 weekday / 09:30 weekend),
+//              30% flexible (depart 08:30 weekday / 10:30 weekend)
+// Returns a weighted average floor for the fleet.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function computeDynamicFloor(
+  hour: number,
+  minute: number,
+  isWeekend: boolean,
+  month: number
+): number {
+  const minBuf = seasonalMinBuffer(month);
+  const target = seasonalTargetSoC(month);
+  const rampHours = 3;
+
+  const commuterDep = isWeekend ? 9.5 : 7.5; // 09:30 / 07:30
+  const flexDep = isWeekend ? 10.5 : 8.5; // 10:30 / 08:30
+  const currentTime = hour + minute / 60;
+
+  function floorForDep(dep: number): number {
+    const hoursUntil = dep - currentTime;
+    if (hoursUntil <= 0 || hoursUntil > rampHours) return minBuf;
+    const ramp = 1 - hoursUntil / rampHours;
+    return Math.round(minBuf + (target - minBuf) * ramp);
+  }
+
+  // Weighted: 70% commuter, 30% flexible
+  const weighted = 0.7 * floorForDep(commuterDep) + 0.3 * floorForDep(flexDep);
+  return Math.round(weighted);
+}
 
 function pluggedInRatioForHour(hour: number, isWeekend: boolean): number {
   const weekday: Record<number, number> = {
