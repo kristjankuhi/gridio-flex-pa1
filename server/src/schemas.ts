@@ -244,28 +244,6 @@ export const SaveBidsBodySchema = z
   })
   .openapi('SaveBidsBody');
 
-export const AreaQuerySchema = z.object({
-  area: z
-    .enum([
-      'global',
-      'BE',
-      'NL',
-      'DE-LU',
-      'FR',
-      'GB',
-      'DK1',
-      'DK2',
-      'FI',
-      'NO2',
-      'SE3',
-      'EE',
-      'LV',
-      'LT',
-    ])
-    .default('global')
-    .describe('Bidding zone / area filter'),
-});
-
 export const MarketStatsSchema = z
   .object({
     daLoadKwh: z
