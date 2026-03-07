@@ -149,12 +149,10 @@ export function Dashboard() {
       (b) => b.timestamp >= range.start && b.timestamp <= range.end
     );
     const totalFlex = blocks.reduce((s, b) => s + b.flexibleKwh, 0);
-    const avgSoC = 62;
     return {
-      totalCapacityKwh: 12_450,
+      totalCapacityKwh: 46_585, // 847 vehicles × 55 kWh avg battery
       optedInFlexibilityKwh: Math.round(totalFlex),
       activeEvCount: 847,
-      avgStateOfChargePct: avgSoC,
     };
   }, [timeWindow, range]);
 

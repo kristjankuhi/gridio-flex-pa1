@@ -33,6 +33,11 @@ export const SoCBlockSchema = z
     downHeadroomKwh: z
       .number()
       .describe('Energy available for down-regulation (kWh)'),
+    dynamicFloorPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe('Departure-ramp SoC floor for this block (%)'),
   })
   .openapi('SoCBlock');
 

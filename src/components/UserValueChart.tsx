@@ -32,7 +32,7 @@ export function UserValueChart({ blocks, timeWindow }: UserValueChartProps) {
           gridio: 0,
           mfrr: 0,
         };
-        existing.user += b.userCreditEur;
+        existing.user += b.userCreditEur - b.mfrrBonusEur;
         existing.gridio += b.gridioRetainedEur;
         existing.mfrr += b.mfrrBonusEur;
         map.set(label, existing);
@@ -50,7 +50,7 @@ export function UserValueChart({ blocks, timeWindow }: UserValueChartProps) {
           ? format(startOfMonth(b.timestamp), 'MMM yy')
           : format(b.timestamp, 'dd MMM');
       const existing = map.get(label) ?? { label, user: 0, gridio: 0, mfrr: 0 };
-      existing.user += b.userCreditEur;
+      existing.user += b.userCreditEur - b.mfrrBonusEur;
       existing.gridio += b.gridioRetainedEur;
       existing.mfrr += b.mfrrBonusEur;
       map.set(label, existing);
