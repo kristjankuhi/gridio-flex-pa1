@@ -1012,7 +1012,6 @@ export function generateActivationHistory(
       const hour = 6 + Math.floor(seededRandom(seed++) * 16);
       const ts = new Date(day);
       ts.setHours(hour, 0, 0, 0);
-      if (ts > now) continue;
 
       const isMfrr = seededRandom(seed++) > 0.5;
       const product: FlexProduct = isMfrr ? 'mfrr' : 'id-balancing';
