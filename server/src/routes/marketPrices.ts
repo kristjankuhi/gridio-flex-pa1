@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
 import { generatePriceReference } from '@/data/generators';
 import { getPriceCacheFor15MinBlock } from '../services/priceService';
-import { PriceReferenceBlockSchema } from '../schemas';
+import { PriceReferenceBlockSchema, ProblemDetailsSchema } from '../schemas';
 
 export const marketPricesRoutes = new OpenAPIHono();
 
@@ -45,6 +45,14 @@ marketPricesRoutes.openapi(
         },
         description: 'Reference price blocks',
       },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
+      },
     },
   }),
   (c) => {
@@ -65,6 +73,7 @@ marketPricesRoutes.openapi(
       };
     });
 
+    c.header('Cache-Control', 'public, max-age=3600');
     return c.json(withRealDA);
   }
 );

@@ -1,8 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
+import { requireScope } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { generateBidTimeline } from '@/data/generators';
 import { getBids, saveBids } from '../store/bidStore';
-import { BidBlockSchema, SaveBidsBodySchema } from '../schemas';
+import {
+  BidBlockSchema,
+  SaveBidsBodySchema,
+  ProblemDetailsSchema,
+} from '../schemas';
 import type { BidBlock } from '@/types';
 
 export const bidsRoutes = new OpenAPIHono();
@@ -25,6 +31,14 @@ bidsRoutes.openapi(
         content: { 'application/json': { schema: z.array(BidBlockSchema) } },
         description: 'Bid blocks',
       },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
+      },
     },
   }),
   (c) => {
@@ -45,9 +59,11 @@ bidsRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/bids',
+    middleware: [requireScope('write'), idempotencyMiddleware] as const,
     tags: ['Bids'],
     summary: 'Save bid timeline',
-    description: 'Saves a new bid timeline for the given date.',
+    description:
+      'Saves a new bid timeline for the given date. Provide an `Idempotency-Key: <uuid>` header to safely retry on network failures. Duplicate requests with the same key return the original response within 24 hours with an `Idempotent-Replayed: true` header.',
     request: {
       body: {
         content: { 'application/json': { schema: SaveBidsBodySchema } },
@@ -65,6 +81,18 @@ bidsRoutes.openapi(
           },
         },
         description: 'Saved bid version metadata',
+      },
+      400: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Invalid request body',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),

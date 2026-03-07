@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { parseISO } from 'date-fns';
 import { generateSoCCurve } from '@/data/generators';
-import { SoCBlockSchema } from '../schemas';
+import { SoCBlockSchema, ProblemDetailsSchema } from '../schemas';
 
 export const socRoutes = new OpenAPIHono();
 
@@ -22,6 +22,14 @@ socRoutes.openapi(
       200: {
         content: { 'application/json': { schema: z.array(SoCBlockSchema) } },
         description: 'SoC curve blocks',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),

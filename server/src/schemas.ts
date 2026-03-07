@@ -167,11 +167,51 @@ export const AreaQuerySchema = z.object({
     .describe('ENTSO-E bidding zone or "global" for fleet-weighted average'),
 });
 
-export const ErrorSchema = z
+export const ProblemDetailsSchema = z
   .object({
-    error: z.string(),
+    type: z.string().describe('URI reference identifying the problem type'),
+    title: z.string().describe('Short human-readable summary'),
+    status: z.number().int().describe('HTTP status code'),
+    detail: z.string().describe('Explanation specific to this occurrence'),
+    instance: z
+      .string()
+      .optional()
+      .describe('URI identifying this specific occurrence'),
+    errors: z
+      .record(z.array(z.string()))
+      .optional()
+      .describe('Field-level validation errors'),
   })
-  .openapi('Error');
+  .openapi('ProblemDetails');
+
+// Keep alias so existing route files that import ErrorSchema still compile
+export const ErrorSchema = ProblemDetailsSchema;
+
+const PROBLEM_TYPES: Record<number, string> = {
+  400: 'https://gridio.io/errors/bad-request',
+  401: 'https://gridio.io/errors/unauthorized',
+  403: 'https://gridio.io/errors/forbidden',
+  404: 'https://gridio.io/errors/not-found',
+  409: 'https://gridio.io/errors/conflict',
+  422: 'https://gridio.io/errors/unprocessable',
+  429: 'https://gridio.io/errors/rate-limited',
+  500: 'https://gridio.io/errors/internal',
+};
+
+export function createProblem(
+  status: number,
+  title: string,
+  detail: string,
+  extras?: { errors?: Record<string, string[]>; instance?: string }
+) {
+  return {
+    type: PROBLEM_TYPES[status] ?? 'https://gridio.io/errors/error',
+    title,
+    status,
+    detail,
+    ...extras,
+  };
+}
 
 export const FlexProductSchema = z
   .enum(['fcr', 'afrr', 'mfrr', 'id-balancing'])

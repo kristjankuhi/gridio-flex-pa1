@@ -1,11 +1,14 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { generateHistoricLoad, generateForecastLoad } from '@/data/generators';
+import { requireScope } from '../middleware/auth';
 import { runSimulation } from '@/data/simulation';
 import {
   SimulationRequestSchema,
   SimulationResultSchema,
-  ErrorSchema,
+  ProblemDetailsSchema,
+  createProblem,
 } from '../schemas';
+import { getSimulatedNow } from '../services/simulationClock';
 import { format } from 'date-fns';
 
 export const simulationRoutes = new OpenAPIHono();
@@ -14,6 +17,7 @@ simulationRoutes.openapi(
   createRoute({
     method: 'post',
     path: '/simulation/run',
+    middleware: [requireScope('write')] as const,
     tags: ['Simulation'],
     summary: 'Run load-shift simulation',
     description:
@@ -30,8 +34,16 @@ simulationRoutes.openapi(
           'Simulation result with baseline and projected load series',
       },
       400: {
-        content: { 'application/json': { schema: ErrorSchema } },
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
         description: 'No load data available for the requested date',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
       },
     },
   }),
@@ -48,7 +60,14 @@ simulationRoutes.openapi(
     const baselineBlocks = historic.length > 0 ? historic : forecast;
 
     if (baselineBlocks.length === 0) {
-      return c.json({ error: `No load data available for date ${date}` }, 400);
+      return c.json(
+        createProblem(
+          400,
+          'Bad Request',
+          `No load data available for date ${date}`
+        ),
+        400
+      );
     }
 
     const priceCurve = newPriceBlocks.map((b) => ({
@@ -75,5 +94,44 @@ simulationRoutes.openapi(
       },
       200
     );
+  }
+);
+
+// GET /simulation/now
+simulationRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/simulation/now',
+    tags: ['Simulation'],
+    summary: 'Get current simulated time',
+    description:
+      'Returns the current simulated timestamp. Advances every 15 real-world minutes as forecast blocks convert to actuals.',
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              simulatedNow: z
+                .string()
+                .datetime()
+                .describe('Current simulated time (ISO 8601 UTC)'),
+            }),
+          },
+        },
+        description: 'Current simulated time',
+      },
+      401: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Missing or invalid API key',
+      },
+      403: {
+        content: { 'application/json': { schema: ProblemDetailsSchema } },
+        description: 'Insufficient scope',
+      },
+    },
+  }),
+  (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json({ simulatedNow: getSimulatedNow().toISOString() });
   }
 );
