@@ -224,18 +224,26 @@ export function generateFleetStats(): FleetStats {
   const hour = now.getHours();
   const pluggedInRatio =
     hour >= 22 || hour < 6 ? 0.85 : hour >= 9 && hour < 16 ? 0.4 : 0.65;
-  const pluggedInCount = Math.round(847 * pluggedInRatio);
-  const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
-  const avgBatteryKwh = 14.7;
-  const upHeadroomKw = Math.round(
-    (((avgSoC - 20) / 100) * pluggedInCount * avgBatteryKwh) / (15 / 60)
-  );
+  const pluggedInCount = Math.round(FLEET_SIZE * pluggedInRatio);
+
+  // Fraction of plugged-in EVs actively drawing charge right now
+  // High overnight (bulk charging), moderate evening, low midday
+  const activeChargingRatio =
+    hour >= 22 || hour < 6 ? 0.9 : hour >= 9 && hour < 16 ? 0.6 : 0.75;
+  const activeChargingCount = Math.round(pluggedInCount * activeChargingRatio);
+
+  // Up headroom = power we can reduce (stop/throttle active chargers)
+  // Down headroom = power we can add (start idle-plugged EVs)
+  const upHeadroomKw = Math.round(activeChargingCount * AVG_CHARGER_KW);
   const downHeadroomKw = Math.round(
-    (((95 - avgSoC) / 100) * pluggedInCount * avgBatteryKwh) / (15 / 60)
+    (pluggedInCount - activeChargingCount) * AVG_CHARGER_KW
   );
+
+  const avgSoC = hour >= 22 || hour < 6 ? 78 : hour >= 9 && hour < 16 ? 50 : 65;
+
   return {
-    totalCapacityKwh: 12_450,
-    availableFlexibilityKw: 3_280,
+    totalCapacityKwh: Math.round(FLEET_SIZE * AVG_BATTERY_KWH),
+    availableFlexibilityKw: Math.round(pluggedInCount * AVG_CHARGER_KW),
     activeEvCount: pluggedInCount,
     avgStateOfChargePct: avgSoC,
     upHeadroomKw,
@@ -244,7 +252,6 @@ export function generateFleetStats(): FleetStats {
 }
 
 const AVG_BATTERY_KWH = 55; // Renault Zoe / early Model 3 mix — realistic modern EV
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const AVG_CHARGER_KW = 7.4; // standard home Type 2 AC charger
 const FLEET_SIZE = 847;
 const MIN_SOC_BUFFER = 20; // summer base; seasonalMinBuffer() overrides per month
