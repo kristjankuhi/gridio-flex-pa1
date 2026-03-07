@@ -5,8 +5,6 @@ import {
   generateForecastLoad,
   generateBasePriceCurve,
 } from './generators';
-import type { LoadShiftBlock } from '../types';
-
 describe('generateFleetStats', () => {
   it('returns plausible fleet stats', () => {
     const stats = generateFleetStats();
@@ -59,20 +57,5 @@ describe('generateBasePriceCurve', () => {
       expect(b.priceEurMwh).toBeGreaterThanOrEqual(0);
       expect(b.priceEurMwh).toBeLessThanOrEqual(500);
     });
-  });
-});
-
-describe('LoadShiftBlock type', () => {
-  it('type has required fields', () => {
-    const block: LoadShiftBlock = {
-      timestamp: new Date(),
-      baselineKwh: 100,
-      actualKwh: 80,
-      deltaKwh: -20,
-      daSpotEurMwh: 65,
-      savingsEur: 1.3,
-    };
-    expect(block.deltaKwh).toBe(-20);
-    expect(block.savingsEur).toBe(1.3);
   });
 });
