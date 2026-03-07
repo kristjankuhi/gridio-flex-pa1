@@ -3,6 +3,7 @@ import type {
   TimeBlock,
   FleetStats,
   PriceBlock,
+  PriceReferenceBlock,
   FlexProduct,
   ActivationRecord,
   ActivationBlock,
@@ -525,6 +526,45 @@ export function generateBasePriceCurve(date: Date): PriceBlock[] {
     current = addMinutes(current, 15);
   }
 
+  return blocks;
+}
+
+export function generatePriceReference(date: Date): PriceReferenceBlock[] {
+  const blocks: PriceReferenceBlock[] = [];
+  let current = startOfDay(date);
+  let seed = date.getTime() % 5555;
+  const now = new Date();
+
+  const month = date.getMonth();
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+
+  for (let i = 0; i < 96; i++) {
+    const hour = current.getHours();
+    const isForecast = current > now;
+
+    const daBase = basePriceForHour(hour, month, isWeekend);
+    const daNoise =
+      1 + (seededRandom(seed++) - 0.5) * (isForecast ? 0.18 : 0.1);
+    const daSpot = Math.max(-100, daBase * daNoise);
+
+    // ID forecast: DA ± 8–12% spread
+    const idSpread = (seededRandom(seed++) - 0.5) * (isForecast ? 0.24 : 0.16);
+    const idForecast = daSpot * (1 + idSpread);
+
+    // mFRR reference: DA + €15–35/MWh capacity premium
+    const mfrrPremium = 15 + seededRandom(seed++) * 20;
+    const mfrrRef = daSpot + mfrrPremium;
+
+    blocks.push({
+      timestamp: new Date(current),
+      daSpotEurMwh: Math.round(daSpot * 10) / 10,
+      idForecastEurMwh: Math.round(idForecast * 10) / 10,
+      mfrrRefEurMwh: Math.round(mfrrRef * 10) / 10,
+      isForecast,
+    });
+
+    current = addMinutes(current, 15);
+  }
   return blocks;
 }
 
