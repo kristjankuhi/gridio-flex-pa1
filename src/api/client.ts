@@ -14,8 +14,13 @@ import type {
 
 const BASE = 'http://localhost:3000/api/v1';
 
+// Dev API key — seeded in server/src/store/apiKeyStore.ts for local development
+const API_KEY = 'gf_dev_trader_aabbccddeeff0022';
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { 'X-API-Key': API_KEY },
+  });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json();
 }
@@ -23,7 +28,7 @@ async function get<T>(path: string): Promise<T> {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
