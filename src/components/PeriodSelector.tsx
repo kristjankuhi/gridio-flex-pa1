@@ -28,27 +28,27 @@ function getShortcuts(timeWindow: TimeWindow, today: Date): Shortcut[] {
   switch (timeWindow) {
     case '1D':
       return [
-        { label: 'Yest', date: subDays(today, 1) },
-        { label: 'Today', date: today },
-        { label: 'Tmrw', date: addDays(today, 1) },
+        { label: 'D-1', date: subDays(today, 1) },
+        { label: 'D', date: today },
+        { label: 'D+1', date: addDays(today, 1) },
       ];
     case '1W':
       return [
-        { label: 'Last W', date: subWeeks(today, 1) },
-        { label: 'This W', date: today },
-        { label: 'Next W', date: addWeeks(today, 1) },
+        { label: 'W-1', date: subWeeks(today, 1) },
+        { label: 'W', date: today },
+        { label: 'W+1', date: addWeeks(today, 1) },
       ];
     case '1M':
       return [
-        { label: 'Last M', date: subMonths(today, 1) },
-        { label: 'This M', date: today },
-        { label: 'Next M', date: addMonths(today, 1) },
+        { label: 'M-1', date: subMonths(today, 1) },
+        { label: 'M', date: today },
+        { label: 'M+1', date: addMonths(today, 1) },
       ];
     case '1Y':
       return [
-        { label: 'Last Y', date: subYears(today, 1) },
-        { label: 'This Y', date: today },
-        { label: 'Next Y', date: addYears(today, 1) },
+        { label: 'Y-1', date: subYears(today, 1) },
+        { label: 'Y', date: today },
+        { label: 'Y+1', date: addYears(today, 1) },
       ];
   }
 }
